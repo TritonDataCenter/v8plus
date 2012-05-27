@@ -1,0 +1,50 @@
+#
+# Copyright (c) 2012 Joyent, Inc.  All rights reserved.
+#
+
+# XXX This is vile; is there a better way?
+WHICH_NODE =	dirname `bash -c 'hash node; hash -t node'`
+
+CC =		gcc
+CXX =		g++
+PREFIX_NODE =	$(WHICH_NODE:sh)/..
+V8PLUS =	$(PWD)/v8plus
+
+DEBUG_FLAGS =	-g
+WARN_FLAGS =	-Wall -Wextra -Werror
+PIC_FLAGS =	-fPIC
+
+CFLAGS =	$(DEBUG_FLAGS) $(WARN_FLAGS) $(PIC_FLAGS)
+CXXFLAGS =	$(CFLAGS)
+
+STD_DEFS =	-D_GNU_SOURCE
+NODE_DEFS =	-DBUILDING_NODE_EXTENSION
+LF64_DEFS =	-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
+PIC_DEFS =	-DPIC
+NODE_INCS =	-isystem $(PREFIX_NODE)/include/node
+
+CPPFLAGS =	$(STD_DEFS) $(NODE_DEFS) $(LF64_DEFS) $(PIC_DEFS) $(NODE_INCS)
+CXXPPFLAGS =	$(CPPFLAGS)
+
+SHARED_FLAGS =	-shared
+ZTEXT =		-ztext
+ZDEFS =		-zdefs
+NODE_LIBDIR =	-L$(PREFIX_NODE)/lib
+
+LDFLAGS =	$(SHARED_FLAGS) $(ZTEXT) $(NODE_LIBDIR)
+LIBS =		-lnvpair
+
+OBJS.c =	$(SRCS:.c=.o)
+OBJS =		$(OBJS.c:.cc=.o)
+
+OBJS +=		\
+		v8plus_errno.o \
+		v8plus_error.o \
+		v8plus_objectwrap.o \
+		v8plus_subr.o
+
+GENERRNO_JS =	$(V8PLUS)/generrno.js
+GENERRNO =	NODE_PATH=../node_modules $(PREFIX_NODE)/bin/node $(GENERRNO_JS)
+
+ERRNO_H =	v8plus_errno.h
+ERRNO_C =	v8plus_errno.c

@@ -1,0 +1,36 @@
+#
+# Copyright (c) 2012 Joyent, Inc.  All rights reserved.
+#
+
+all: $(MODULE).node
+
+$(ERRNO_C): $(GENERRNO_JS) $(ERRNO_JSON)
+	$(GENERRNO) -c -o $@ $(ERRNO_JSON)
+
+$(ERRNO_H): $(GENERRNO_JS) $(ERRNO_JSON)
+	$(GENERRNO) -h -o $@ $(ERRNO_JSON)
+
+$(OBJS): $(ERRNO_H)
+
+$(MODULE).node: $(OBJS)
+	$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+
+%.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+%.o: %.cc
+	$(CXX) $(CXXPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+
+%.o: $(V8PLUS)/%.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+
+%.o: $(V8PLUS)/%.cc
+	$(CXX) $(CXXPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+
+.PHONY: clean
+
+clean:
+	-rm -f $(OBJS) $(ERRNO_C) $(ERRNO_H)
+
+clobber: clean
+	-rm -f $(MODULE).node
