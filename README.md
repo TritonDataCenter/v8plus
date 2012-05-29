@@ -114,7 +114,7 @@ of this file is as follows:
 		...  ]
 	}
 
-For each entry in the errors array, an identifier V8PLUSERR_<code> will be
+For each entry in the errors array, an identifier V8PLUSERR_code will be
 added to v8plus_errno_t.  By convention, code should be all upper case.  The
 default error message (present in JavaScript exceptions if a more specific
 error message is not provided to v8plus_error()) is given by the msg
