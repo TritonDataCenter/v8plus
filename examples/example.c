@@ -166,12 +166,14 @@ example_toString(void *op, const nvlist_t *ap)
 		}
 
 		if ((err = nvlist_add_double(xp, "example_argument", 0)) != 0) {
+			nvlist_free(xp);
 			nvlist_free(rp);
 			return (v8plus_nverr(err, "example_argument"));
 		}
 
 		if ((err = nvlist_add_double(xp,
 		    "example_type", nvpair_type(pp))) != 0) {
+			nvlist_free(xp);
 			nvlist_free(rp);
 			return (v8plus_nverr(err, "example_type"));
 		}

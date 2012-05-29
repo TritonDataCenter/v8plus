@@ -194,9 +194,14 @@ need, and note that they're not mutually exclusive, either.
 
 - What systems can I use this on?
 
-[illumos](http://illumos.org) distributions, or possibly other platforms with
-a working libnvpair.  I'm sorry if your system doesn't have it; it's open
-source and pretty easy to port.
+[illumos](http://illumos.org) distributions, or possibly other platforms
+with a working libnvpair.  I'm sorry if your system doesn't have it; it's
+open source and pretty easy to port.
+
+There is an OSX port; see [the ZFS port's
+implementation](http://code.google.com/p/maczfs/source/browse/#git%2Fusr%2Fsrc%2Flib%2Flibnvpair).
+Unfortunately this port lacks the requisite support for floating-point data
+(DATA_TYPE_DOUBLE) but you could easily add that from the illumos sources.
 
 - What about node-waf?
 
