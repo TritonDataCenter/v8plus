@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2012 Joyent, Inc.  All rights reserved.
+ */
+
 #ifndef _EXAMPLE_H
 #define	_EXAMPLE_H
 

@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2012 Joyent, Inc.  All rights reserved.
+ */
+
 #include <sys/ccompile.h>
 #include <stdlib.h>
 #include <float.h>

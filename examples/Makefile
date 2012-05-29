@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2012 Joyent, Inc.  All rights reserved.
+#
+
 V8PLUS =	..
 
 include $(V8PLUS)/Makefile.v8plus.defs

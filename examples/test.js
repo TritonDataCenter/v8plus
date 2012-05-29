@@ -1,3 +1,14 @@
+/*
+ * Copyright (c) 2012 Joyent, Inc.  All rights reserved.
+ */
+
+/*
+ * 'example' is a native C module that provides a partial implementation of
+ * an unsigned 64-bit integer type.  This is a simple consumer that
+ * demonstrates creation and manipulation of these objects, which should be
+ * self-explanatory.  See example.c for the implementation.
+ */
+
 var example = require('./example');
 var util = require('util');
 
@@ -34,11 +45,3 @@ f.set(22222222);
 e.multiply(f.toString());
 console.log('e = ' + e.toString());
 console.log('f = ' + f.toString());
-
-function
-x()
-{
-	var n = example.create(32);
-}
-
-x();
