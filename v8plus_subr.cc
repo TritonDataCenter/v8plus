@@ -120,9 +120,11 @@ nvlist_add_v8_Value(nvlist_t *lp, const char *name,
 					return (err);
 				}
 			} else {
-				/* XXX exception or something, fuck */
-				(void) fprintf(stderr, "can't handle %s", type);
-				abort();
+				/*
+				 * XXX This is (C) programmer error.  Should
+				 * we plumb up a way to throw here?
+				 */
+				(void) v8plus::panic("can't handle %s", type);
 			}
 		}
 
@@ -178,107 +180,98 @@ v8plus::v8_Arguments_to_nvlist(const v8::Arguments &args)
 	return (lp);
 }
 
-#define	SET(_o, _p, _jt, _ct, _xt, _pt) \
-	do { \
-		_ct _v; \
-		(void) nvpair_value_##_pt((_p), &_v); \
-		(_o)->Set(v8::String::New(nvpair_name((_p))), \
-		    v8::_jt::New((_xt)_v)); \
-	} while (0)
-
-#define	SET_JS(_o, _p, _c) \
-	(_o)->Set(v8::String::New(nvpair_name((_p))), (_c))
-
 /* XXX pass Handle/Local by value or reference? */
 static void
-decorate_object(v8::Local<v8::Object> &obj, const nvlist_t *lp)
+decorate_object(v8::Local<v8::Object> &oh, const nvlist_t *lp)
 {
 	nvpair_t *pp = NULL;
 
 	while ((pp =
 	    nvlist_next_nvpair(const_cast<nvlist_t *>(lp), pp)) != NULL) {
-		switch (nvpair_type(pp)) {
-		case DATA_TYPE_BOOLEAN:
-			SET_JS(obj, pp, v8::Undefined());
-			break;
-		case DATA_TYPE_BOOLEAN_VALUE:
-			SET(obj, pp, Boolean, boolean_t, bool, boolean_value);
-			break;
-		case DATA_TYPE_BYTE:
-		{
-			uint8_t _v = (uint8_t)-1;
-
-			if (nvpair_value_byte(pp, &_v) != 0 || _v != 0)
-				v8plus::panic("bad byte value %02x\n", _v);
-
-			SET_JS(obj, pp, v8::Null());
-		}
-			break;
-		case DATA_TYPE_INT8:
-			SET(obj, pp, Number, int8_t, double, int8);
-			break;
-		case DATA_TYPE_UINT8:
-			SET(obj, pp, Number, uint8_t, double, uint8);
-			break;
-		case DATA_TYPE_INT16:
-			SET(obj, pp, Number, int16_t, double, int16);
-			break;
-		case DATA_TYPE_UINT16:
-			SET(obj, pp, Number, uint16_t, double, uint16);
-			break;
-		case DATA_TYPE_INT32:
-			SET(obj, pp, Number, int32_t, double, int32);
-			break;
-		case DATA_TYPE_UINT32:
-			SET(obj, pp, Number, uint32_t, double, uint32);
-			break;
-		case DATA_TYPE_INT64:
-			SET(obj, pp, Number, int64_t, double, int64);
-			break;
-		case DATA_TYPE_UINT64:
-			SET(obj, pp, Number, uint64_t, double, uint64);
-			break;
-		case DATA_TYPE_STRING:
-			SET(obj, pp, String,
-			    char *, const char *, string);
-			break;
-		case DATA_TYPE_NVLIST:
-		{
-			nvlist_t *clp = NULL;
-			(void) nvpair_value_nvlist(pp, &clp);
-			SET_JS(obj, pp, v8plus::nvlist_to_v8_Object(clp));
-		}
-			break;
-		default:
-			v8plus::panic("bad data type %d\n", nvpair_type(pp));
-		}
+		oh->Set(v8::String::New(nvpair_name(pp)),
+		    v8plus::nvpair_to_v8_Value(pp));
 	}
 }
 
-#undef SET
-#undef SET_JS
+#define	RETURN_JS(_p, _jt, _ct, _xt, _pt) \
+	do { \
+		_ct _v; \
+		(void) nvpair_value_##_pt(const_cast<nvpair_t *>(_p), &_v); \
+		return (v8::_jt::New((_xt)_v)); \
+	} while (0)
 
-v8::Local<v8::Object>
-v8plus::nvlist_to_v8_Object(const nvlist_t *lp)
+v8::Handle<v8::Value>
+v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 {
-	v8::Local<v8::Object> obj;
 	const char *type;
 
-	if (nvlist_lookup_string(const_cast<nvlist_t *>(lp),
-	    V8PLUS_OBJ_TYPE_MEMBER, const_cast<char **>(&type)) != 0)
-		type = "Object";
+	switch (nvpair_type(const_cast<nvpair_t *>(pp))) {
+	case DATA_TYPE_BOOLEAN:
+		return (v8::Undefined());
+	case DATA_TYPE_BOOLEAN_VALUE:
+		RETURN_JS(pp, Boolean, boolean_t, bool, boolean_value);
+	case DATA_TYPE_BYTE:
+	{
+		uint8_t _v = (uint8_t)-1;
 
-	if (strcmp(type, "Array") == 0)
-		obj = v8::Array::New()->ToObject();
-	else if (strcmp(type, "Object") != 0)
-		v8plus::panic("bad object type %s\n", type);
-	else
-		obj = v8::Object::New();
+		if (nvpair_value_byte(const_cast<nvpair_t *>(pp), &_v) != 0 ||
+		    _v != 0) {
+			v8plus::panic("bad byte value %02x\n", _v);
+		}
 
-	decorate_object(obj, lp);
+		return (v8::Null());
+	}
+	case DATA_TYPE_INT8:
+		RETURN_JS(pp, Number, int8_t, double, int8);
+	case DATA_TYPE_UINT8:
+		RETURN_JS(pp, Number, uint8_t, double, uint8);
+	case DATA_TYPE_INT16:
+		RETURN_JS(pp, Number, int16_t, double, int16);
+	case DATA_TYPE_UINT16:
+		RETURN_JS(pp, Number, uint16_t, double, uint16);
+	case DATA_TYPE_INT32:
+		RETURN_JS(pp, Number, int32_t, double, int32);
+	case DATA_TYPE_UINT32:
+		RETURN_JS(pp, Number, uint32_t, double, uint32);
+	case DATA_TYPE_INT64:
+		RETURN_JS(pp, Number, int64_t, double, int64);
+	case DATA_TYPE_UINT64:
+		RETURN_JS(pp, Number, uint64_t, double, uint64);
+	case DATA_TYPE_DOUBLE:
+		RETURN_JS(pp, Number, double, double, double);
+	case DATA_TYPE_STRING:
+		RETURN_JS(pp, String, char *, const char *, string);
+	case DATA_TYPE_NVLIST:
+	{
+		nvlist_t *lp;
+		v8::Local<v8::Object> oh;
 
-	return (obj);
+		(void) nvpair_value_nvlist(const_cast<nvpair_t *>(pp), &lp);
+
+		if (nvlist_lookup_string(const_cast<nvlist_t *>(lp),
+		    V8PLUS_OBJ_TYPE_MEMBER, const_cast<char **>(&type)) != 0)
+			type = "Object";
+
+		if (strcmp(type, "Array") == 0)
+			oh = v8::Array::New()->ToObject();
+		else if (strcmp(type, "Object") != 0)
+			v8plus::panic("bad object type %s\n", type);
+		else
+			oh = v8::Object::New();
+
+		decorate_object(oh, lp);
+		return (oh);
+	}
+	default:
+		v8plus::panic("bad data type %d\n",
+		    nvpair_type(const_cast<nvpair_t *>(pp)));
+	}
+
+	/*NOTREACHED*/
+	return (v8::Undefined());
 }
+
+#undef	RETURN_JS
 
 static v8::Local<v8::Value>
 sexception(const char *type, const nvlist_t *lp, const char *msg)

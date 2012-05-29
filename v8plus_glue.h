@@ -16,10 +16,11 @@ extern "C" {
 #define	V8PLUS_ERRMSG_LEN	512
 
 /*
- * C constructor and method prototypes.  See README.md.
+ * C constructor, destructor, and method prototypes.  See README.md.
  */
 typedef nvlist_t *(*v8plus_c_ctor_f)(const nvlist_t *, void **);
 typedef nvlist_t *(*v8plus_c_method_f)(void *, const nvlist_t *);
+typedef void (*v8plus_c_dtor_f)(void *);
 
 typedef struct v8plus_method_descr {
 	const char *md_name;
@@ -70,6 +71,7 @@ extern const char *v8plus_excptype(v8plus_errno_t);
  * Provided by C code.  See README.md.
  */
 extern const v8plus_c_ctor_f v8plus_ctor;
+extern const v8plus_c_dtor_f v8plus_dtor;
 extern const char *v8plus_js_factory_name;
 extern const char *v8plus_js_class_name;
 extern const v8plus_method_descr_t v8plus_methods[];

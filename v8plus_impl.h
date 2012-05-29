@@ -36,15 +36,15 @@ private:
 	static v8plus_method_descr_t *_mtbl;
 	void *_c_impl;
 
-	ObjectWrap() {};
-	~ObjectWrap() {};
+	ObjectWrap() : _c_impl(NULL) {};
+	~ObjectWrap() { v8plus_dtor(_c_impl); };
 
 	static v8::Handle<v8::Value> _new(const v8::Arguments &);
 	static v8::Handle<v8::Value> _entry(const v8::Arguments &);
 };
 
 extern nvlist_t *v8_Arguments_to_nvlist(const v8::Arguments &);
-extern v8::Local<v8::Object> nvlist_to_v8_Object(const nvlist_t *);
+extern v8::Handle<v8::Value> nvpair_to_v8_Value(const nvpair_t *);
 extern v8::Local<v8::Value> exception(const char *, const nvlist_t *,
     const char *, ...) __PRINTFLIKE(3);
 extern void panic(const char *, ...) __PRINTFLIKE(1) __NORETURN;

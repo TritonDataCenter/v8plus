@@ -65,7 +65,7 @@ v8plus::ObjectWrap::init()
 }
 
 v8::Handle<v8::Value>
-v8plus::ObjectWrap::_new(const v8::Arguments& args)
+v8plus::ObjectWrap::_new(const v8::Arguments &args)
 {
 	v8::HandleScope scope;
 	v8plus::ObjectWrap *op = new v8plus::ObjectWrap();
@@ -116,7 +116,8 @@ v8plus::ObjectWrap::_entry(const v8::Arguments &args)
 	    node::ObjectWrap::Unwrap<v8plus::ObjectWrap>(args.This());
 	nvlist_t *c_args;
 	nvlist_t *c_out;
-	nvlist_t *res, *excp;
+	nvlist_t *excp;
+	nvpair_t *rpp;
 	v8::Local<v8::String> self = args.Callee()->GetName()->ToString();
 	v8::String::Utf8Value selfsv(self);
 	const char *fn = *selfsv;
@@ -147,12 +148,18 @@ v8plus::ObjectWrap::_entry(const v8::Arguments &args)
 		else
 			return (V8PLUS_THROW_DEFAULT());
 	} else {
-		if (nvlist_lookup_nvlist(c_out, "err", &excp) == 0)
-			return (V8PLUS_THROW_DECORATED(excp));
-		else if (nvlist_lookup_nvlist(c_out, "res", &res) == 0)
-			return (scope.Close(v8plus::nvlist_to_v8_Object(res)));
-		else
+		if (nvlist_lookup_nvlist(c_out, "err", &excp) == 0) {
+			v8::Handle<v8::Value> x = V8PLUS_THROW_DECORATED(excp);
+			nvlist_free(c_out);
+			return (x);
+		} else if (nvlist_lookup_nvpair(c_out, "res", &rpp) == 0) {
+			v8::Handle<v8::Value> r =
+			    v8plus::nvpair_to_v8_Value(rpp);
+			nvlist_free(c_out);
+			return (scope.Close(r));
+		} else {
 			v8plus::panic("bad encoded object in return");
+		}
 	}
 
 	/*NOTREACHED*/
