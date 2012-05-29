@@ -149,7 +149,7 @@ Because v8+ doesn't do anything itself, there's no installation procedure and
 no npm support.  All you need to do to use v8+ is:
 
 0. Write the C code that does whatever your module does.  Be sure to
-#include "v8plus/v8plus_glue.h".  Do not include any other v8+ headers.
+\#include "v8plus/v8plus_glue.h".  Do not include any other v8+ headers.
 
 1. Add posix-getopt to your module's dependency list in package.json and
 make sure it's installed.
