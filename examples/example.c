@@ -22,7 +22,7 @@ example_set_impl(example_t *ep, nvpair_t *pp)
 		(void) nvpair_value_double(pp, &dv);
 		if (dv > (1ULL << DBL_MANT_DIG) - 1) {
 			return (v8plus_error(V8PLUSERR_IMPRECISE,
-			    "translation of large number will lose precision"));
+			    "large number lacks integer precision"));
 		}
 		ep->e_val = (uint64_t)dv;
 		break;
@@ -32,7 +32,7 @@ example_set_impl(example_t *ep, nvpair_t *pp)
 		v = (uint64_t)strtoull(sv, (char **)&ev, 0);
 		if (errno == ERANGE) {
 			return (v8plus_error(V8PLUSERR_RANGE,
-			    "value is out of range"));
+			    "value '%s' is out of range", sv));
 		}
 		if (ev != NULL && *ev != '\0') {
 			return (v8plus_error(V8PLUSERR_MALFORMED,
@@ -148,7 +148,7 @@ example_toString(void *op, const nvlist_t *ap)
 	nvpair_t *pp;
 	nvlist_t *rp;
 	int err;
-	char vbuf[16];
+	char vbuf[32];
 
 	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
 		return (v8plus_nverr(err, NULL));

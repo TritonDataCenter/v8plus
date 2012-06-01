@@ -78,9 +78,11 @@ as their primitive types, not objects.  If you need to return something
 containing these object types, you cannot use v8+.  Other data types
 cannot be represented.  If you need to return them, you cannot use v8+.
 
-The nvlist being returned must have one of two members: "res", an nvlist
+The nvlist being returned must have one of two members: "res", an nvpair
 containing the result of the call to be returned, or "err", an nvlist
-containing members to be added to an exception. 
+containing members to be added to an exception.  You may return a value of
+any decodable type, and likewise may decorate an exception with properties
+of any decodable type.
 
 For convenience, you may return v8plus_void() instead of an nvlist,
 which indicates successful execution of a function that returns nothing.

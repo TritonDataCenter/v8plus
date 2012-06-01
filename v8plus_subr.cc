@@ -300,8 +300,7 @@ sexception(const char *type, const nvlist_t *lp, const char *msg)
 	if (obj_hdl == NULL)
 		v8plus::panic("%s\n", dlerror());
 
-	excp_ctor =
-	    reinterpret_cast<v8::Local<v8::Value>(*)(v8::Handle<v8::String>)>(
+	excp_ctor = (v8::Local<v8::Value>(*)(v8::Handle<v8::String>))(
 	    dlsym(obj_hdl, ctor_name));
 
 	if (excp_ctor == NULL) {
