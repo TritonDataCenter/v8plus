@@ -39,6 +39,8 @@ public:
 	static v8::Handle<v8::Value> cons(const v8::Arguments &);
 	static ObjectWrap *objlookup(const void *);
 	v8::Handle<v8::Value> call(const char *, int, v8::Handle<v8::Value>[]);
+	void public_Ref(void);
+	void public_Unref(void);
 
 private:
 	static v8::Persistent<v8::Function> _constructor;

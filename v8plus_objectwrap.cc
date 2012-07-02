@@ -208,6 +208,18 @@ v8plus::ObjectWrap::call(const char *name,
 	return (v);
 }
 
+void
+v8plus::ObjectWrap::public_Ref(void)
+{
+	this->Ref();
+}
+
+void
+v8plus::ObjectWrap::public_Unref(void)
+{
+	this->Unref();
+}
+
 extern "C" void
 init(v8::Handle<v8::Object> target)
 {

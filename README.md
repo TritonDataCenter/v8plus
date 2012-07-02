@@ -4,6 +4,14 @@ v8+: Node addon C++ to C boundary layer
 
 For full docs, read the source code.
 
+## Node.js Support
+
+v8+ works with, and has been tested to some extent with, Node.js 0.6.18 and
+0.8.1.  It most likely works with other micro versions in the 0.6 and 0.8
+series as well.  Note that this does not mean you can necessarily expect an
+addon built against a particular minor release of Node.js to work with any
+other minor release of Node.js.
+
 ### Overview
 
 This layer offers a way to write at least simple Node addons in C without
@@ -205,7 +213,7 @@ implementation](http://code.google.com/p/maczfs/source/browse/#git%2Fusr%2Fsrc%2
 Unfortunately this port lacks the requisite support for floating-point data
 (DATA_TYPE_DOUBLE) but you could easily add that from the illumos sources.
 
-- What about node-waf?
+- What about node-waf and node-gyp?
 
 Fuck python, fuck WAF, and fuck all the hipster douchebags for whom make is
 too hard, too old, or "too Unixy".  Make is simple, easy to use, and
@@ -225,6 +233,12 @@ specifying its API so you're left with a bunch of undefined symbols you just
 have to hope are defined somewhere in your node process's address space.  If
 they aren't, you're boned.  LD_DEBUG=all will help you find the missing
 symbol(s).
+
+As of 0.0.2, v8+ builds a mapfile for your node binary at the time you build
+your addon.  It does not attempt to restrict the visibility of any symbols,
+so you will not be warned if your addon is using private or deprecated
+functionality in V8 or Node.  Your build will, however, fail if you've
+neglected to link in any required libraries, typo'd a symbol name, etc.
 
 - Why use the old init() instead of NODE_MODULE()?
 

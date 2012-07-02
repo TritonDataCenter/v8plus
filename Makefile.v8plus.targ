@@ -12,7 +12,7 @@ $(ERRNO_H): $(GENERRNO_JS) $(ERRNO_JSON)
 
 $(OBJS): $(ERRNO_H)
 
-$(MODULE).node: $(OBJS)
+$(MODULE).node: $(OBJS) $(MAPFILE)
 	$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 
 %.o: %.c
@@ -27,10 +27,16 @@ $(MODULE).node: $(OBJS)
 %.o: $(V8PLUS)/%.cc
 	$(CXX) $(CXXPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
+$(MAPFILE): $(PREFIX_NODE)/bin/node
+	/usr/bin/nm -ghnp $< | \
+	    (printf "\$$mapfile_version 2\n\nSYMBOL_SCOPE {\n\tglobal:\n"; \
+	    awk '$$2 != "U" { print "\t\t" $$3 "\t{ FLAGS = EXTERN };" }'; \
+	    printf "\t\tinit;\n\tlocal:\n\t\t*;\n};") > $@
+
 .PHONY: clean
 
 clean:
 	-rm -f $(OBJS) $(ERRNO_C) $(ERRNO_H)
 
 clobber: clean
-	-rm -f $(MODULE).node
+	-rm -f $(MODULE).node $(MAPFILE)

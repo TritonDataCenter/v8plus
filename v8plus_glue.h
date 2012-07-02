@@ -78,6 +78,18 @@ extern void v8plus_jsfunc_hold(v8plus_jsfunc_t);
 extern void v8plus_jsfunc_rele(v8plus_jsfunc_t);
 
 /*
+ * Place or release a hold on the V8 representation of the specified C object.
+ * This is rarely necessary; v8plus_defer() performs this action for you, but
+ * other asynchronous mechanisms may require it.  If you are returning from
+ * a method call but have stashed a reference to the object somewhere and are
+ * not calling v8plus_defer(), you must call this first.  Holds and releases
+ * must be balanced.  Use of the object within a thread after releasing is a
+ * bug.
+ */
+extern void v8plus_obj_hold(const void *);
+extern void v8plus_obj_rele(const void *);
+
+/*
  * Perform a background, possibly blocking and/or expensive, task.  First,
  * the worker function will be enqueued for execution on another thread; its
  * first argument is a pointer to the C object on which to operate, and the

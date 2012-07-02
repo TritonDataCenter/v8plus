@@ -645,3 +645,17 @@ nvpair_value_v8plus_jsfunc(const nvpair_t *pp, v8plus_jsfunc_t *vp)
 
 	return (0);
 }
+
+extern "C" void
+v8plus_obj_hold(const void *cop)
+{
+	v8plus::ObjectWrap *op = v8plus::ObjectWrap::objlookup(cop);
+	op->public_Ref();
+}
+
+extern "C" void
+v8plus_obj_rele(const void *cop)
+{
+	v8plus::ObjectWrap *op = v8plus::ObjectWrap::objlookup(cop);
+	op->public_Unref();
+}

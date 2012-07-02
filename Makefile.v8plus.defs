@@ -30,8 +30,10 @@ SHARED_FLAGS =	-shared
 ZTEXT =		-Wl,-ztext
 ZDEFS =		-Wl,-zdefs
 NODE_LIBDIR =	-L$(PREFIX_NODE)/lib
+MAPFILES =	$(MAPFILE)
 
-LDFLAGS =	$(SHARED_FLAGS) $(ZTEXT) $(NODE_LIBDIR)
+LDFLAGS =	$(SHARED_FLAGS) $(ZTEXT) $(ZDEFS) $(NODE_LIBDIR)
+LDFLAGS +=	$(MAPFILES:%=-Wl,-M,%)
 LIBS =		-lnvpair
 
 OBJS.c =	$(SRCS:.c=.o)
@@ -48,3 +50,5 @@ GENERRNO =	NODE_PATH=../node_modules $(PREFIX_NODE)/bin/node $(GENERRNO_JS)
 
 ERRNO_H =	v8plus_errno.h
 ERRNO_C =	v8plus_errno.c
+
+MAPFILE =	mapfile_node

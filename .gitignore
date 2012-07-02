@@ -7,3 +7,4 @@ examples/v8plus_errno.o
 examples/v8plus_objectwrap.o
 examples/v8plus_subr.o
 node_modules/
+mapfile_node
