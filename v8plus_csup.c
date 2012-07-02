@@ -94,6 +94,8 @@ v8plus_uv_completion(uv_work_t *wp)
 	v8plus_uv_ctx_t *cp = wp->data;
 
 	cp->vuc_completion(cp->vuc_obj, cp->vuc_ctx, cp->vuc_result);
+	free(cp);
+	free(wp);
 }
 
 void
