@@ -249,7 +249,7 @@ See "License" below.
 - Is there any way to pass JavaScript functions into these methods and call
 them from C?
 
-Yes, but I haven't gotten around to that yet.  It's obviously needed.
+Yes.  See the example code.  Documentation is coming soon.
 
 ## License
 
