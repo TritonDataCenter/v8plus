@@ -182,6 +182,7 @@ async_multiply_done(void *op, void *ctx, void *res)
 	nvlist_free(ap);
 	nvlist_free(rp);
 	v8plus_jsfunc_rele(cp->amc_cb);
+	free(cp);
 }
 
 static nvlist_t *
