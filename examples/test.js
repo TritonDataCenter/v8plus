@@ -11,6 +11,7 @@
 
 var example = require('./example');
 var util = require('util');
+var EventEmitter = require('events').EventEmitter;
 
 var e = example.create();
 var f = example.create('8000000000');
@@ -45,3 +46,32 @@ f.set(22222222);
 e.multiply(f.toString());
 console.log('e = ' + e.toString());
 console.log('f = ' + f.toString());
+
+e.set(33);
+e.multiplyAsync(100, function () {
+	console.log('background e = ' + e.toString());
+});
+
+function
+Wrapper(ex)
+{
+	var self = this;
+
+	ex.__emit = function (name) {
+		var args = Array.prototype.slice.call(arguments);
+		self.emit.apply(self, args);
+	};
+}
+
+util.inherits(Wrapper, EventEmitter);
+
+var g = example.create('543');
+var gw = new Wrapper(g);
+
+gw.on('add', function () {
+	console.log('someone added something');
+});
+
+g.add(200);
+g.add(300);
+g.add(400);

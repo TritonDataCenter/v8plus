@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <string.h>
 #include <new>
+#include <unordered_map>
 #include <stdlib.h>
 #include <node.h>
 #include "v8plus_impl.h"
@@ -14,6 +15,7 @@
 
 v8::Persistent<v8::Function> v8plus::ObjectWrap::_constructor;
 v8plus_method_descr_t *v8plus::ObjectWrap::_mtbl;
+std::unordered_map<void *, v8plus::ObjectWrap *> v8plus::ObjectWrap::_objhash;
 
 static char *
 function_name(const char *lambda)
@@ -85,9 +87,16 @@ v8plus::ObjectWrap::_new(const v8::Arguments &args)
 		}
 	}
 
+	_objhash.insert(std::make_pair(op->_c_impl, op));
 	op->Wrap(args.This());
 
 	return (args.This());
+}
+
+v8plus::ObjectWrap::~ObjectWrap()
+{
+	v8plus_dtor(_c_impl);
+	(void) _objhash.erase(_c_impl);
 }
 
 v8::Handle<v8::Value>
@@ -99,6 +108,17 @@ v8plus::ObjectWrap::cons(const v8::Arguments &args)
 	v8::Local<v8::Object> instance = _constructor->NewInstance(argc, argv);
 
 	return (scope.Close(instance));
+}
+
+v8plus::ObjectWrap *
+v8plus::ObjectWrap::objlookup(const void *cop)
+{
+	std::unordered_map<void *, v8plus::ObjectWrap *>::iterator it;
+
+	if ((it = _objhash.find(const_cast<void *>(cop))) == _objhash.end())
+		v8plus::panic("unable to find C++ wrapper for %p\n", cop);
+
+	return (it->second);
 }
 
 /*
@@ -164,6 +184,28 @@ v8plus::ObjectWrap::_entry(const v8::Arguments &args)
 
 	/*NOTREACHED*/
 	return (v8::Undefined());
+}
+
+v8::Handle<v8::Value>
+v8plus::ObjectWrap::call(const char *name,
+    int argc, v8::Handle<v8::Value> argv[])
+{
+	v8::Handle<v8::Value> v = v8::Undefined();
+	v8::Local<v8::Value> f = handle_->Get(v8::String::NewSymbol(name));
+
+	/*
+ 	 * XXX - we'd like to throw here, but for some reason our TryCatch
+ 	 * block doesn't seem to handle the exception.
+ 	 */
+	if (!f->IsFunction())
+		return (v8::Undefined());
+
+#ifdef NODE_MAKECALLBACK_RETURN
+	v =
+#endif
+	node::MakeCallback(handle_, name, argc, argv);
+
+	return (v);
 }
 
 extern "C" void

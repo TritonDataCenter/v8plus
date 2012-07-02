@@ -105,6 +105,8 @@ example_add(void *op, const nvlist_t *ap)
 	example_t *ep = op;
 	example_t ae;
 	nvpair_t *pp;
+	nvlist_t *eap;
+	nvlist_t *erp;
 
 	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) != 0) {
 		return (v8plus_error(V8PLUSERR_MISSINGARG,
@@ -116,6 +118,12 @@ example_add(void *op, const nvlist_t *ap)
 		return (NULL);
 
 	ep->e_val += ae.e_val;
+
+	(void) nvlist_alloc(&eap, NV_UNIQUE_NAME, 0);
+	(void) nvlist_add_string(eap, "0", "add");
+	erp = v8plus_method_call(op, "__emit", eap);
+	nvlist_free(eap);
+	nvlist_free(erp);
 
 	return (v8plus_void());
 }
@@ -137,6 +145,73 @@ example_multiply(void *op, const nvlist_t *ap)
 		return (NULL);
 
 	ep->e_val *= ae.e_val;
+
+	return (v8plus_void());
+}
+
+typedef struct async_multiply_ctx {
+	example_t amc_operand;
+	v8plus_jsfunc_t amc_cb;
+} async_multiply_ctx_t;
+
+static void *
+async_multiply_worker(void *op, void *ctx)
+{
+	example_t *ep = op;
+	async_multiply_ctx_t *cp = ctx;
+	example_t *ap = &cp->amc_operand;
+
+	ep->e_val *= ap->e_val;	/* XXX lock */
+
+	return (v8plus_void());
+}
+
+static void
+async_multiply_done(void *op, void *ctx, void *res)
+{
+	async_multiply_ctx_t *cp = ctx;
+	nvlist_t *rp;
+	nvlist_t *ap;
+
+	(void) res;
+	(void) op;
+
+	(void) nvlist_alloc(&ap, NV_UNIQUE_NAME, 0);
+	rp = v8plus_call(cp->amc_cb, ap);
+
+	nvlist_free(ap);
+	nvlist_free(rp);
+	v8plus_jsfunc_rele(cp->amc_cb);
+}
+
+static nvlist_t *
+example_multiplyAsync(void *op, const nvlist_t *ap)
+{
+	nvpair_t *pp;
+	v8plus_jsfunc_t cb;
+	async_multiply_ctx_t *cp;
+
+	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) != 0) {
+		return (v8plus_error(V8PLUSERR_MISSINGARG,
+		    "argument 0 is required"));
+	}
+
+	if (nvlist_lookup_v8plus_jsfunc((nvlist_t *)ap, "1", &cb) != 0) {
+		return (v8plus_error(V8PLUSERR_MISSINGARG,
+		    "argument 1 is required"));
+	}
+
+	if ((cp = malloc(sizeof (async_multiply_ctx_t))) == NULL)
+		return (v8plus_error(V8PLUSERR_NOMEM, "no memory for context"));
+
+	(void) example_set_impl(&cp->amc_operand, pp);
+	if (_v8plus_errno != V8PLUSERR_NOERROR)
+		return (NULL);
+
+	v8plus_jsfunc_hold(cb);
+	cp->amc_cb = cb;
+
+	v8plus_defer(op, cp, async_multiply_worker, async_multiply_done);
 
 	return (v8plus_void());
 }
@@ -223,6 +298,10 @@ const v8plus_method_descr_t v8plus_methods[] = {
 	{
 		md_name: "toString",
 		md_c_func: example_toString
+	},
+	{
+		md_name: "multiplyAsync",
+		md_c_func: example_multiplyAsync
 	}
 };
 const uint_t v8plus_method_count =

@@ -11,11 +11,23 @@
 #include <libnvpair.h>
 #include <node.h>
 #include <v8.h>
+#include <unordered_map>
+#include <string>
 #include "v8plus_impl.h"
 
 #define	V8PLUS_OBJ_TYPE_MEMBER	".__v8plus_type"
 #define	V8_EXCEPTION_CTOR_FMT \
-    "_ZN2v89Exception%u%sENS_6HandleINS_6StringEEE"
+	"_ZN2v89Exception%u%sENS_6HandleINS_6StringEEE"
+
+typedef struct cb_hdl {
+	v8::Handle<v8::Function> ch_hdl;
+	uint_t ch_refs;
+	boolean_t ch_persist;
+} cb_hdl_t;
+
+static std::unordered_map<uint64_t, cb_hdl_t> cbhash;
+static uint64_t cbnext;
+static void (*__real_nvlist_free)(nvlist_t *);
 
 static const char *
 cstr(const v8::String::Utf8Value &v)
@@ -44,13 +56,20 @@ v8plus::panic(const char *fmt, ...)
  * Convenience macros for adding stuff to an nvlist and returning on failure.
  */
 #define	LA_U(_l, _n, _e) \
-	if (((_e) = nvlist_add_boolean((_l), (_n))) != 0) return (err)
+	if (((_e) = nvlist_add_boolean((_l), (_n))) != 0) \
+		return (_e)
 
 #define	LA_N(_l, _n, _e) \
-	if (((_e) = nvlist_add_byte((_l), (_n), 0)) != 0) return (err)
+	if (((_e) = nvlist_add_byte((_l), (_n), 0)) != 0) \
+		return (_e)
 
 #define	LA_V(_l, _t, _n, _v, _e) \
-	if (((_e) = nvlist_add_##_t((_l), (_n), (_v))) != 0) return (err)
+	if (((_e) = nvlist_add_##_t((_l), (_n), (_v))) != 0) \
+		return (_e)
+
+#define	LA_VA(_l, _t, _n, _v, _c, _e) \
+	if (((_e) = nvlist_add_##_t##_array((_l), (_n), (_v), (_c))) != 0) \
+		return (_e)
 
 /*
  * Add an element named <name> to list <lp> with a transcoded value
@@ -99,6 +118,19 @@ nvlist_add_v8_Value(nvlist_t *lp, const char *name,
 	} else if (vh->IsBooleanObject()) {
 		boolean_t vv = vh->BooleanValue() ? _B_TRUE : _B_FALSE;
 		LA_V(lp, boolean_value, name, vv, err);
+	} else if (vh->IsFunction()) {
+		cb_hdl_t ch;
+
+		ch.ch_hdl = v8::Handle<v8::Function>::Cast(vh);
+		ch.ch_refs = 1;
+		ch.ch_persist = _B_FALSE;
+
+		while (cbhash.find(cbnext) != cbhash.end())
+			++cbnext;
+		cbhash.insert(std::make_pair(cbnext, ch));
+
+		LA_VA(lp, string, ".__v8plus_jsfunc_cookie", NULL, 0, err);
+		LA_VA(lp, uint64, name, &cbnext, 1, err);
 	} else if (vh->IsObject()) {
 		v8::Local<v8::Object> oh = vh->ToObject();
 		v8::Local<v8::Array> keys = oh->GetOwnPropertyNames();
@@ -180,7 +212,6 @@ v8plus::v8_Arguments_to_nvlist(const v8::Arguments &args)
 	return (lp);
 }
 
-/* XXX pass Handle/Local by value or reference? */
 static void
 decorate_object(v8::Local<v8::Object> &oh, const nvlist_t *lp)
 {
@@ -241,6 +272,23 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 		RETURN_JS(pp, Number, double, double, double);
 	case DATA_TYPE_STRING:
 		RETURN_JS(pp, String, char *, const char *, string);
+	case DATA_TYPE_JSFUNC:
+	{
+		std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
+		uint64_t *vp;
+		uint_t nv;
+		int err;
+
+		if ((err = nvpair_value_uint64_array(const_cast<nvpair_t *>(pp),
+		    &vp, &nv)) != 0)
+			v8plus::panic("bad JSFUNC pair: %s", strerror(err));
+		if (nv != 1)
+			v8plus::panic("bad uint64 array length %u", nv);
+		if ((it = cbhash.find(*vp)) == cbhash.end())
+			v8plus::panic("callback hash tag %llu not found", *vp);
+
+		return (it->second.ch_hdl);
+	}
 	case DATA_TYPE_NVLIST:
 	{
 		nvlist_t *lp;
@@ -272,6 +320,37 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 }
 
 #undef	RETURN_JS
+
+static uint_t
+nvlist_length(const nvlist_t *lp)
+{
+	uint_t l = 0;
+	nvpair_t *pp = NULL;
+
+	while ((pp =
+	    nvlist_next_nvpair(const_cast<nvlist_t *>(lp), pp)) != NULL)
+		++l;
+
+	return (l);
+}
+
+static void
+nvlist_to_v8_argv(const nvlist_t *lp, int *argcp, v8::Handle<v8::Value> *argv)
+{
+	nvpair_t *pp;
+	char name[16];
+	int i;
+
+	for (i = 0; i < *argcp; i++) {
+		(void) snprintf(name, sizeof (name), "%u", i);
+		if (nvlist_lookup_nvpair(const_cast<nvlist_t *>(lp),
+		    name, &pp) != 0)
+			break;
+		argv[i] = v8plus::nvpair_to_v8_Value(pp);
+	}
+
+	*argcp = i;
+}
 
 static v8::Local<v8::Value>
 sexception(const char *type, const nvlist_t *lp, const char *msg)
@@ -340,7 +419,7 @@ v8plus::exception(const char *type, const nvlist_t *lp, const char *fmt, ...)
 		len = vsnprintf(NULL, 0, fmt, ap);
 		va_end(ap);
 		msg = reinterpret_cast<char *>(alloca(len + 1));
-	
+
 		va_start(ap, fmt);
 		(void) vsnprintf(msg, len + 1, fmt, ap);
 		va_end(ap);
@@ -351,4 +430,218 @@ v8plus::exception(const char *type, const nvlist_t *lp, const char *fmt, ...)
 	exception = sexception(type, lp, msg);
 
 	return (exception);
+}
+
+extern "C" nvlist_t *
+v8plus_call(v8plus_jsfunc_t f, const nvlist_t *lp)
+{
+	std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
+	const int max_argc = nvlist_length(lp);
+	int argc, err;
+	v8::Handle<v8::Value> argv[max_argc];
+	v8::Handle<v8::Value> res;
+	nvlist_t *rp;
+
+	if ((it = cbhash.find(f)) == cbhash.end())
+		v8plus::panic("callback hash tag %llu not found", f);
+
+	argc = max_argc;
+	nvlist_to_v8_argv(lp, &argc, argv);
+
+	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
+		return (v8plus_nverr(err, NULL));
+
+	v8::TryCatch tc;
+	res = it->second.ch_hdl->Call(v8::Context::GetCurrent()->Global(),
+	    argc, argv);
+	if (tc.HasCaught()) {
+		err = nvlist_add_v8_Value(rp, "err", tc.Exception());
+		tc.Reset();
+		if (err != 0) {
+			nvlist_free(rp);
+			return (v8plus_nverr(err, "err"));
+		}
+	} else if ((err = nvlist_add_v8_Value(rp, "res", res)) != 0) {
+		nvlist_free(rp);
+		return (v8plus_nverr(err, "res"));
+	}
+
+	return (rp);
+}
+
+extern "C" nvlist_t *
+v8plus_method_call(void *cop, const char *name, const nvlist_t *lp)
+{
+	v8plus::ObjectWrap *op = v8plus::ObjectWrap::objlookup(cop);
+	const int max_argc = nvlist_length(lp);
+	int argc, err;
+	v8::Handle<v8::Value> argv[max_argc];
+	v8::Handle<v8::Value> res;
+	nvlist_t *rp;
+
+	argc = max_argc;
+	nvlist_to_v8_argv(lp, &argc, argv);
+
+	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
+		return (v8plus_nverr(err, NULL));
+
+	v8::TryCatch tc;
+	res = op->call(name, argc, argv);
+	if (tc.HasCaught()) {
+		err = nvlist_add_v8_Value(rp, "err", tc.Exception());
+		tc.Reset();
+		if (err != 0) {
+			nvlist_free(rp);
+			return (v8plus_nverr(err, "err"));
+		}
+	} else if ((err = nvlist_add_v8_Value(rp, "res", res)) != 0) {
+		nvlist_free(rp);
+		return (v8plus_nverr(err, "res"));
+	}
+
+	return (rp);
+}
+
+extern "C" int
+nvlist_lookup_v8plus_jsfunc(const nvlist_t *lp, const char *name,
+    v8plus_jsfunc_t *vp)
+{
+	uint64_t *lvp;
+	uint_t nv;
+	int err;
+
+	err = nvlist_lookup_uint64_array(const_cast<nvlist_t *>(lp),
+	    name, &lvp, &nv);
+	if (err != 0)
+		return (err);
+
+	if (nv != 1)
+		v8plus::panic("bad array size %u for callback hash tag", nv);
+
+	*vp = *lvp;
+	return (0);
+}
+
+extern "C" void
+v8plus_jsfunc_hold(v8plus_jsfunc_t f)
+{
+	v8::Persistent<v8::Function> pfh;
+	std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
+
+	if ((it = cbhash.find(f)) == cbhash.end())
+		v8plus::panic("callback hash tag %llu not found", f);
+
+	if (!it->second.ch_persist) {
+		pfh = v8::Persistent<v8::Function>::New(it->second.ch_hdl);
+		it->second.ch_hdl = pfh;
+		it->second.ch_persist = _B_TRUE;
+	}
+	++it->second.ch_refs;
+}
+
+extern "C" void
+v8plus_jsfunc_rele(v8plus_jsfunc_t f)
+{
+	v8::Local<v8::Function> lfh;
+	std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
+
+	if ((it = cbhash.find(f)) == cbhash.end())
+		v8plus::panic("callback hash tag %llu not found", f);
+
+	if (it->second.ch_refs == 0)
+		v8plus::panic("releasing unheld callback hash tag %llu", f);
+
+	if (--it->second.ch_refs == 0) {
+		if (it->second.ch_persist) {
+			v8::Persistent<v8::Function> pfh(it->second.ch_hdl);
+			pfh.Dispose();
+		}
+		cbhash.erase(it);
+	}
+}
+
+static size_t
+library_name(const char *base, const char *version, char *buf, size_t len)
+{
+#ifdef __MACH__
+	return (snprintf(buf, len, "lib%s.%s%sdylib", base,
+	    version ? version : "", version ? "." : ""));
+#else
+	return (snprintf(buf, len, "lib%s.so%s%s", base,
+	    version ? "." : "", version ? version : ""));
+#endif
+}
+
+/*
+ * This is really gross: we need to free up JS function slots when then list
+ * is freed, but there's no way for us to know that's happening.  So we
+ * interpose on nvlist_free() here, checking for function slots to free iff
+ * this is a list that has a V8 JS function handle in it.  Lists created by
+ * someone else, even if they have uint64 arrays in them, are passed through.
+ * This whole thing makes me want to cry.  Why can't we just have a decent
+ * JS VM?!
+ */
+extern "C" void
+nvlist_free(nvlist_t *lp)
+{
+	uint64_t *vp;
+	uint_t nv;
+	nvpair_t *pp = NULL;
+
+	if (lp == NULL)
+		return;
+
+	if (__real_nvlist_free == NULL) {
+		char *libname;
+		size_t len;
+		void *dlhdl;
+
+		len = library_name("nvpair", "1", NULL, 0) + 1;
+		libname = reinterpret_cast<char *>(alloca(len));
+		(void) library_name("nvpair", "1", libname, len);
+
+		dlhdl = dlopen(libname, RTLD_LAZY | RTLD_LOCAL);
+		if (dlhdl == NULL) {
+			v8plus::panic("unable to dlopen libnvpair: %s",
+			    dlerror());
+		}
+		__real_nvlist_free = (void (*)(nvlist_t *))
+		    dlsym(dlhdl, "nvlist_free");
+		if (__real_nvlist_free == NULL)
+			v8plus::panic("unable to find nvlist_free");
+	}
+
+	if (nvlist_exists(lp, ".__v8plus_jsfunc_cookie")) {
+		while ((pp = nvlist_next_nvpair(lp, pp)) != NULL) {
+			if (nvpair_type(pp) != DATA_TYPE_JSFUNC)
+				continue;
+			if (nvpair_value_uint64_array(pp, &vp, &nv) != 0) {
+				v8plus::panic(
+				    "unable to obtain callbach hash tag");
+			}
+			if (nv != 1) {
+				v8plus::panic(
+				    "bad array size %u for callback hash tag",
+				    nv);
+			}
+			v8plus_jsfunc_rele(*vp);
+		}
+	}
+
+	__real_nvlist_free(lp);
+}
+
+extern "C" int
+nvpair_value_v8plus_jsfunc(const nvpair_t *pp, v8plus_jsfunc_t *vp)
+{
+	uint64_t *lvp;
+	uint_t nv;
+	int err;
+
+	if ((err = nvpair_value_uint64_array((nvpair_t *)pp, &lvp, &nv)) != 0)
+		return (err);
+
+	*vp = *lvp;
+
+	return (0);
 }

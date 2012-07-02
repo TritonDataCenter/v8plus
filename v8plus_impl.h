@@ -9,6 +9,7 @@
 #include <stdarg.h>
 #include <libnvpair.h>
 #include <v8.h>
+#include <unordered_map>
 #include "v8plus_glue.h"
 
 /*
@@ -24,20 +25,29 @@
 #define	V8PLUS_THROW_DEFAULT()		V8PLUS_THROW(NULL, NULL, NULL)
 #define	V8PLUS_THROW_DECORATED(_e)	V8PLUS_THROW(NULL, (_e), NULL)
 
+#if NODE_MINOR_VERSION > 7 || NODE_MAJOR_VERSION > 0
+#define	NODE_MAKECALLBACK_RETURN
+#endif
+
 namespace v8plus {
+
+class ObjectWrap;
 
 class ObjectWrap : public node::ObjectWrap {
 public:
 	static void init();
 	static v8::Handle<v8::Value> cons(const v8::Arguments &);
+	static ObjectWrap *objlookup(const void *);
+	v8::Handle<v8::Value> call(const char *, int, v8::Handle<v8::Value>[]);
 
 private:
 	static v8::Persistent<v8::Function> _constructor;
 	static v8plus_method_descr_t *_mtbl;
+	static std::unordered_map<void *, ObjectWrap *> _objhash;
 	void *_c_impl;
 
 	ObjectWrap() : _c_impl(NULL) {};
-	~ObjectWrap() { v8plus_dtor(_c_impl); };
+	~ObjectWrap();
 
 	static v8::Handle<v8::Value> _new(const v8::Arguments &);
 	static v8::Handle<v8::Value> _entry(const v8::Arguments &);

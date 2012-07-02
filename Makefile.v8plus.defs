@@ -15,7 +15,7 @@ PIC_FLAGS =	-fPIC
 OPT_FLAGS =	-O2
 
 CFLAGS =	$(DEBUG_FLAGS) $(WARN_FLAGS) $(PIC_FLAGS) $(OPT_FLAGS)
-CXXFLAGS =	$(CFLAGS)
+CXXFLAGS =	$(CFLAGS) -std=c++0x
 
 STD_DEFS =	-D_GNU_SOURCE
 NODE_DEFS =	-DBUILDING_NODE_EXTENSION
@@ -38,8 +38,8 @@ OBJS.c =	$(SRCS:.c=.o)
 OBJS =		$(OBJS.c:.cc=.o)
 
 OBJS +=		\
+		v8plus_csup.o \
 		v8plus_errno.o \
-		v8plus_error.o \
 		v8plus_objectwrap.o \
 		v8plus_subr.o
 
