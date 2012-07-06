@@ -36,23 +36,6 @@ cstr(const v8::String::Utf8Value &v)
 }
 
 /*
- * Suicide.  It's always an option.  Try to avoid using this as it's not
- * very nice to kill the entire node process; if at all possible we need
- * to throw a JavaScript exception instead.
- */
-void
-v8plus::panic(const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	(void) vfprintf(stderr, fmt, ap);
-	va_end(ap);
-
-	abort();
-}
-
-/*
  * Convenience macros for adding stuff to an nvlist and returning on failure.
  */
 #define	LA_U(_l, _n, _e) \
@@ -156,7 +139,7 @@ nvlist_add_v8_Value(nvlist_t *lp, const char *name,
 				 * XXX This is (C) programmer error.  Should
 				 * we plumb up a way to throw here?
 				 */
-				(void) v8plus::panic("can't handle %s", type);
+				(void) v8plus_panic("can't handle %s", type);
 			}
 		}
 
@@ -247,7 +230,7 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 
 		if (nvpair_value_byte(const_cast<nvpair_t *>(pp), &_v) != 0 ||
 		    _v != 0) {
-			v8plus::panic("bad byte value %02x\n", _v);
+			v8plus_panic("bad byte value %02x\n", _v);
 		}
 
 		return (v8::Null());
@@ -272,7 +255,7 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 		RETURN_JS(pp, Number, double, double, double);
 	case DATA_TYPE_STRING:
 		RETURN_JS(pp, String, char *, const char *, string);
-	case DATA_TYPE_JSFUNC:
+	case DATA_TYPE_UINT64_ARRAY:
 	{
 		std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
 		uint64_t *vp;
@@ -281,11 +264,11 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 
 		if ((err = nvpair_value_uint64_array(const_cast<nvpair_t *>(pp),
 		    &vp, &nv)) != 0)
-			v8plus::panic("bad JSFUNC pair: %s", strerror(err));
+			v8plus_panic("bad JSFUNC pair: %s", strerror(err));
 		if (nv != 1)
-			v8plus::panic("bad uint64 array length %u", nv);
+			v8plus_panic("bad uint64 array length %u", nv);
 		if ((it = cbhash.find(*vp)) == cbhash.end())
-			v8plus::panic("callback hash tag %llu not found", *vp);
+			v8plus_panic("callback hash tag %llu not found", *vp);
 
 		return (it->second.ch_hdl);
 	}
@@ -303,7 +286,7 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 		if (strcmp(type, "Array") == 0)
 			oh = v8::Array::New()->ToObject();
 		else if (strcmp(type, "Object") != 0)
-			v8plus::panic("bad object type %s\n", type);
+			v8plus_panic("bad object type %s\n", type);
 		else
 			oh = v8::Object::New();
 
@@ -311,7 +294,7 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 		return (oh);
 	}
 	default:
-		v8plus::panic("bad data type %d\n",
+		v8plus_panic("bad data type %d\n",
 		    nvpair_type(const_cast<nvpair_t *>(pp)));
 	}
 
@@ -377,7 +360,7 @@ sexception(const char *type, const nvlist_t *lp, const char *msg)
 
 	obj_hdl = dlopen(NULL, RTLD_NOLOAD);
 	if (obj_hdl == NULL)
-		v8plus::panic("%s\n", dlerror());
+		v8plus_panic("%s\n", dlerror());
 
 	excp_ctor = (v8::Local<v8::Value>(*)(v8::Handle<v8::String>))(
 	    dlsym(obj_hdl, ctor_name));
@@ -385,7 +368,7 @@ sexception(const char *type, const nvlist_t *lp, const char *msg)
 	if (excp_ctor == NULL) {
 		(void) dlclose(obj_hdl);
 		if (strcmp(type, "Error") == 0) {
-			v8plus::panic("Unable to find %s, aborting\n",
+			v8plus_panic("Unable to find %s, aborting\n",
 			    ctor_name);
 		} else {
 			excp = v8::Exception::Error(v8::String::New(
@@ -443,7 +426,7 @@ v8plus_call(v8plus_jsfunc_t f, const nvlist_t *lp)
 	nvlist_t *rp;
 
 	if ((it = cbhash.find(f)) == cbhash.end())
-		v8plus::panic("callback hash tag %llu not found", f);
+		v8plus_panic("callback hash tag %llu not found", f);
 
 	argc = max_argc;
 	nvlist_to_v8_argv(lp, &argc, argv);
@@ -516,7 +499,7 @@ nvlist_lookup_v8plus_jsfunc(const nvlist_t *lp, const char *name,
 		return (err);
 
 	if (nv != 1)
-		v8plus::panic("bad array size %u for callback hash tag", nv);
+		v8plus_panic("bad array size %u for callback hash tag", nv);
 
 	*vp = *lvp;
 	return (0);
@@ -529,7 +512,7 @@ v8plus_jsfunc_hold(v8plus_jsfunc_t f)
 	std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
 
 	if ((it = cbhash.find(f)) == cbhash.end())
-		v8plus::panic("callback hash tag %llu not found", f);
+		v8plus_panic("callback hash tag %llu not found", f);
 
 	if (!it->second.ch_persist) {
 		pfh = v8::Persistent<v8::Function>::New(it->second.ch_hdl);
@@ -546,10 +529,10 @@ v8plus_jsfunc_rele(v8plus_jsfunc_t f)
 	std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
 
 	if ((it = cbhash.find(f)) == cbhash.end())
-		v8plus::panic("callback hash tag %llu not found", f);
+		v8plus_panic("callback hash tag %llu not found", f);
 
 	if (it->second.ch_refs == 0)
-		v8plus::panic("releasing unheld callback hash tag %llu", f);
+		v8plus_panic("releasing unheld callback hash tag %llu", f);
 
 	if (--it->second.ch_refs == 0) {
 		if (it->second.ch_persist) {
@@ -602,25 +585,25 @@ nvlist_free(nvlist_t *lp)
 
 		dlhdl = dlopen(libname, RTLD_LAZY | RTLD_LOCAL);
 		if (dlhdl == NULL) {
-			v8plus::panic("unable to dlopen libnvpair: %s",
+			v8plus_panic("unable to dlopen libnvpair: %s",
 			    dlerror());
 		}
 		__real_nvlist_free = (void (*)(nvlist_t *))
 		    dlsym(dlhdl, "nvlist_free");
 		if (__real_nvlist_free == NULL)
-			v8plus::panic("unable to find nvlist_free");
+			v8plus_panic("unable to find nvlist_free");
 	}
 
 	if (nvlist_exists(lp, ".__v8plus_jsfunc_cookie")) {
 		while ((pp = nvlist_next_nvpair(lp, pp)) != NULL) {
-			if (nvpair_type(pp) != DATA_TYPE_JSFUNC)
+			if (nvpair_type(pp) != DATA_TYPE_UINT64_ARRAY)
 				continue;
 			if (nvpair_value_uint64_array(pp, &vp, &nv) != 0) {
-				v8plus::panic(
+				v8plus_panic(
 				    "unable to obtain callbach hash tag");
 			}
 			if (nv != 1) {
-				v8plus::panic(
+				v8plus_panic(
 				    "bad array size %u for callback hash tag",
 				    nv);
 			}

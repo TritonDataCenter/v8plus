@@ -26,7 +26,7 @@ function_name(const char *lambda)
 	len = snprintf(NULL, 0, METHOD_NAME_FMT,
 	    v8plus_js_class_name, lambda);
 	if ((fn = (char *)malloc(len + 1)) == NULL)
-		v8plus::panic("out of memory for function name for %s", lambda);
+		v8plus_panic("out of memory for function name for %s", lambda);
 
 	(void) snprintf(fn, len + 1, METHOD_NAME_FMT,
 		    v8plus_js_class_name, lambda);
@@ -43,7 +43,7 @@ v8plus::ObjectWrap::init()
 
 	_mtbl = new (std::nothrow) v8plus_method_descr_t[v8plus_method_count];
 	if (_mtbl == NULL)
-		v8plus::panic("out of memory for method table");
+		v8plus_panic("out of memory for method table");
 
 	tpl->SetClassName(v8::String::NewSymbol(v8plus_js_class_name));
 	tpl->InstanceTemplate()->SetInternalFieldCount(v8plus_method_count);
@@ -116,7 +116,7 @@ v8plus::ObjectWrap::objlookup(const void *cop)
 	std::unordered_map<void *, v8plus::ObjectWrap *>::iterator it;
 
 	if ((it = _objhash.find(const_cast<void *>(cop))) == _objhash.end())
-		v8plus::panic("unable to find C++ wrapper for %p\n", cop);
+		v8plus_panic("unable to find C++ wrapper for %p\n", cop);
 
 	return (it->second);
 }
@@ -154,7 +154,7 @@ v8plus::ObjectWrap::_entry(const v8::Arguments &args)
 	}
 
 	if (c_method == NULL)
-		v8plus::panic("impossible method name %s\n", fn);
+		v8plus_panic("impossible method name %s\n", fn);
 
 	if ((c_args = v8plus::v8_Arguments_to_nvlist(args)) == NULL)
 		return (V8PLUS_THROW_DEFAULT());
@@ -178,7 +178,7 @@ v8plus::ObjectWrap::_entry(const v8::Arguments &args)
 			nvlist_free(c_out);
 			return (scope.Close(r));
 		} else {
-			v8plus::panic("bad encoded object in return");
+			v8plus_panic("bad encoded object in return");
 		}
 	}
 

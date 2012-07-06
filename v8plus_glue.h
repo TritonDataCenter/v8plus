@@ -15,7 +15,18 @@ extern "C" {
 
 #define	V8PLUS_ERRMSG_LEN	512
 
-#define	DATA_TYPE_JSFUNC	DATA_TYPE_UINT64_ARRAY
+typedef enum v8plus_type {
+	V8PLUS_TYPE_NONE = 0,		/* N/A */
+	V8PLUS_TYPE_STRING,		/* char * */
+	V8PLUS_TYPE_NUMBER,		/* double */
+	V8PLUS_TYPE_BOOLEAN,		/* boolean_t */
+	V8PLUS_TYPE_JSFUNC,		/* v8plus_jsfunc_t */
+	V8PLUS_TYPE_OBJECT,		/* nvlist_t * */
+	V8PLUS_TYPE_NULL,		/* -- */
+	V8PLUS_TYPE_UNDEFINED,		/* -- */
+	V8PLUS_TYPE_INVALID,		/* data_type_t */
+	V8PLUS_TYPE_ANY			/* nvpair_t * */
+} v8plus_type_t;
 
 typedef uint64_t v8plus_jsfunc_t;
 
@@ -42,6 +53,13 @@ extern __thread char _v8plus_errmsg[V8PLUS_ERRMSG_LEN];
  */
 extern void *v8plus_verror(v8plus_errno_t, const char *, va_list);
 extern void *v8plus_error(v8plus_errno_t, const char *, ...);
+
+/*
+ * Suicide.  It's always an option.  Try to avoid using this as it's not
+ * very nice to kill the entire node process; if at all possible we need
+ * to throw a JavaScript exception instead.
+ */
+extern void v8plus_panic(const char *, ...) __PRINTFLIKE(1) __NORETURN;
 
 /*
  * As above, this convenience function sets the error code and message based
@@ -88,6 +106,8 @@ extern void v8plus_jsfunc_rele(v8plus_jsfunc_t);
  */
 extern void v8plus_obj_hold(const void *);
 extern void v8plus_obj_rele(const void *);
+
+extern v8plus_type_t v8plus_typeof(const nvpair_t *);
 
 /*
  * Perform a background, possibly blocking and/or expensive, task.  First,

@@ -2,6 +2,7 @@
  * Copyright (c) 2012 Joyent, Inc.  All rights reserved.
  */
 
+#include <sys/ccompile.h>
 #include <stdarg.h>
 #include <string.h>
 #include <strings.h>
@@ -49,6 +50,24 @@ v8plus_error(v8plus_errno_t e, const char *fmt, ...)
 	return (NULL);
 }
 
+static void __NORETURN
+v8plus_vpanic(const char *fmt, va_list ap)
+{
+	(void) vfprintf(stderr, fmt, ap);
+	(void) fflush(stderr);
+	abort();
+}
+
+void
+v8plus_panic(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	v8plus_vpanic(fmt, ap);
+	va_end(ap);
+}
+
 nvlist_t *
 v8plus_nverr(int nverr, const char *member)
 {
@@ -78,6 +97,44 @@ nvlist_t *
 v8plus_void(void)
 {
 	return (v8plus_error(V8PLUSERR_NOERROR, NULL));
+}
+
+v8plus_type_t
+v8plus_typeof(const nvpair_t *pp)
+{
+	data_type_t t = nvpair_type((nvpair_t *)pp);
+
+	switch (t) {
+	case DATA_TYPE_DOUBLE:
+		return (V8PLUS_TYPE_NUMBER);
+	case DATA_TYPE_STRING:
+		return (V8PLUS_TYPE_STRING);
+	case DATA_TYPE_NVLIST:
+		return (V8PLUS_TYPE_OBJECT);
+	case DATA_TYPE_BOOLEAN_VALUE:
+		return (V8PLUS_TYPE_BOOLEAN);
+	case DATA_TYPE_BOOLEAN:
+		return (V8PLUS_TYPE_UNDEFINED);
+	case DATA_TYPE_BYTE:
+	{
+		uchar_t v;
+		if (nvpair_value_byte((nvpair_t *)pp, &v) != 0 || v != 0)
+			return (V8PLUS_TYPE_INVALID);
+		return (V8PLUS_TYPE_NULL);
+	}
+	case DATA_TYPE_UINT64_ARRAY:
+	{
+		uint64_t *vp;
+		uint_t nv;
+		if (nvpair_value_uint64_array((nvpair_t *)pp, &vp, &nv) != 0 ||
+		    nv != 1) {
+			return (V8PLUS_TYPE_INVALID);
+		}
+		return (V8PLUS_TYPE_JSFUNC);
+	}
+	default:
+		return (V8PLUS_TYPE_INVALID);
+	}
 }
 
 static void

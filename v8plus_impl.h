@@ -59,7 +59,6 @@ extern nvlist_t *v8_Arguments_to_nvlist(const v8::Arguments &);
 extern v8::Handle<v8::Value> nvpair_to_v8_Value(const nvpair_t *);
 extern v8::Local<v8::Value> exception(const char *, const nvlist_t *,
     const char *, ...) __PRINTFLIKE(3);
-extern void panic(const char *, ...) __PRINTFLIKE(1) __NORETURN;
 
 }; /* namespace v8plus */
 
