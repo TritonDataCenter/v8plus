@@ -13,6 +13,8 @@
 extern "C" {
 #endif	/* __cplusplus */
 
+#define	V8PLUS_ARG_F_NOEXTRA	0x01
+
 #define	V8PLUS_ERRMSG_LEN	512
 
 typedef enum v8plus_type {
@@ -118,7 +120,11 @@ extern void v8plus_jsfunc_rele(v8plus_jsfunc_t);
 extern void v8plus_obj_hold(const void *);
 extern void v8plus_obj_rele(const void *);
 
+/*
+ * Convenience functions for dealing with JS arguments.
+ */
 extern v8plus_type_t v8plus_typeof(const nvpair_t *);
+extern int v8plus_args(const nvlist_t *, uint_t, v8plus_type_t t, ...);
 
 /*
  * Perform a background, possibly blocking and/or expensive, task.  First,

@@ -87,7 +87,9 @@ example_set(void *op, const nvlist_t *ap)
 	nvpair_t *pp;
 	example_t *ep = op;
 
-	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) != 0) {
+	if (v8plus_args(ap, 0,
+	    V8PLUS_TYPE_ANY, &pp,
+	    V8PLUS_TYPE_NONE) != 0) {
 		return (v8plus_error(V8PLUSERR_MISSINGARG,
 		    "argument 0 is required"));
 	}

@@ -162,6 +162,141 @@ v8plus_typeof(const nvpair_t *pp)
 	}
 }
 
+static int
+v8plus_arg_value(v8plus_type_t t, nvpair_t *pp, void *vp)
+{
+	data_type_t dt = nvpair_type(pp);
+
+	switch (t) {
+	case V8PLUS_TYPE_NONE:
+		return (-1);
+	case V8PLUS_TYPE_STRING:
+		if (dt == DATA_TYPE_STRING) {
+			if (vp != NULL)
+				(void) nvpair_value_string(pp, (char **)vp);
+			return (0);
+		}
+		return (-1);
+	case V8PLUS_TYPE_NUMBER:
+		if (dt == DATA_TYPE_DOUBLE) {
+			if (vp != NULL)
+				(void) nvpair_value_double(pp, (double *)vp);
+			return (0);
+		}
+		return (-1);
+	case V8PLUS_TYPE_BOOLEAN:
+		if (dt == DATA_TYPE_BOOLEAN_VALUE) {
+			if (vp != NULL) {
+				(void) nvpair_value_boolean_value(pp,
+				    (boolean_t *)vp);
+			}
+			return (0);
+		}
+		return (-1);
+	case V8PLUS_TYPE_JSFUNC:
+		if (dt == DATA_TYPE_UINT64_ARRAY) {
+			uint_t nv;
+			uint64_t *vpp;
+
+			if (nvpair_value_uint64_array(pp, &vpp, &nv) == 0 &&
+			    nv == 1) {
+				if (vp != NULL)
+					*(v8plus_jsfunc_t *)vp = vpp[0];
+				return (0);
+			}
+		}
+		return (-1);
+	case V8PLUS_TYPE_OBJECT:
+		if (dt == DATA_TYPE_NVLIST) {
+			if (vp != NULL)
+				(void) nvpair_value_nvlist(pp, (nvlist_t **)vp);
+			return (0);
+		}
+		return (-1);
+	case V8PLUS_TYPE_NULL:
+		if (dt == DATA_TYPE_BYTE) {
+			uchar_t v;
+
+			if (nvpair_value_byte((nvpair_t *)pp, &v) == 0 &&
+			    v == 0)
+				return (0);
+		}
+		return (-1);
+	case V8PLUS_TYPE_UNDEFINED:
+		return (dt == DATA_TYPE_BOOLEAN ? 0 : -1);
+	case V8PLUS_TYPE_ANY:
+		if (vp != NULL)
+			*(nvpair_t **)vp = pp;
+		return (0);
+	case V8PLUS_TYPE_INVALID:
+		if (vp != NULL)
+			*(data_type_t *)vp = dt;
+		return (0);
+	default:
+		return (-1);
+	}
+}
+
+int
+v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
+{
+	v8plus_type_t nt = t;
+	nvpair_t *pp;
+	void *vp;
+	va_list ap;
+	uint_t i;
+	char buf[32];
+
+	va_start(ap, t);
+
+	for (i = 0; ; i++) {
+		if (nt == V8PLUS_TYPE_NONE)
+			break;
+
+		(void) va_arg(ap, void *);
+
+		(void) snprintf(buf, sizeof (buf), "%u", i);
+		if (nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) != 0)
+			return (-1);
+
+		if (v8plus_arg_value(nt, pp, NULL) != 0)
+			return (-1);
+
+		nt = va_arg(ap, data_type_t);
+	}
+
+	va_end(ap);
+
+	if (flags & V8PLUS_ARG_F_NOEXTRA) {
+		(void) snprintf(buf, sizeof (buf), "%u", i);
+		if (nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) == 0)
+			return (-1);
+	}
+
+	nt = t;
+	va_start(ap, t);
+
+	for (i = 0; ; i++) {
+		if (nt == V8PLUS_TYPE_NONE)
+			break;
+
+		vp = va_arg(ap, void *);
+
+		(void) snprintf(buf, sizeof (buf), "%u", i);
+		if (nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) != 0)
+			return (-1);
+
+		if (v8plus_arg_value(nt, pp, vp) != 0)
+			return (-1);
+
+		nt = va_arg(ap, data_type_t);
+	}
+
+	va_end(ap);
+
+	return (0);
+}
+
 static void
 v8plus_uv_worker(uv_work_t *wp)
 {
