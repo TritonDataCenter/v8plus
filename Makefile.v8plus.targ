@@ -2,7 +2,7 @@
 # Copyright (c) 2012 Joyent, Inc.  All rights reserved.
 #
 
-all: $(MODULE).node
+all: $(MODULE_DIR)/$(MODULE).node
 
 $(ERRNO_C): $(GENERRNO_JS) $(ERRNO_JSON)
 	$(GENERRNO) -c -o $@ $(ERRNO_JSON)
@@ -39,4 +39,4 @@ clean:
 	-rm -f $(OBJS) $(ERRNO_C) $(ERRNO_H)
 
 clobber: clean
-	-rm -f $(MODULE).node $(MAPFILE)
+	-rm -f $(MODULE_DIR)/$(MODULE).node $(MAPFILE)
