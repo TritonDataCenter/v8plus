@@ -35,7 +35,7 @@ class ObjectWrap;
 
 class ObjectWrap : public node::ObjectWrap {
 public:
-	static void init();
+	static void init(v8::Handle<v8::Object>);
 	static v8::Handle<v8::Value> cons(const v8::Arguments &);
 	static ObjectWrap *objlookup(const void *);
 	v8::Handle<v8::Value> call(const char *, int, v8::Handle<v8::Value>[]);
@@ -45,6 +45,7 @@ public:
 private:
 	static v8::Persistent<v8::Function> _constructor;
 	static v8plus_method_descr_t *_mtbl;
+	static v8plus_static_descr_t *_stbl;
 	static std::unordered_map<void *, ObjectWrap *> _objhash;
 	void *_c_impl;
 
@@ -53,6 +54,7 @@ private:
 
 	static v8::Handle<v8::Value> _new(const v8::Arguments &);
 	static v8::Handle<v8::Value> _entry(const v8::Arguments &);
+	static v8::Handle<v8::Value> _static_entry(const v8::Arguments &);
 };
 
 extern nvlist_t *v8_Arguments_to_nvlist(const v8::Arguments &);

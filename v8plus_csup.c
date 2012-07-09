@@ -90,6 +90,31 @@ v8plus_nverr(int nverr, const char *member)
 	return (NULL);
 }
 
+nvlist_t *
+v8plus_syserr(int syserr, const char *fmt, ...)
+{
+	v8plus_errno_t e;
+	va_list ap;
+
+	switch (syserr) {
+	case ENOMEM:
+		e = V8PLUSERR_NOMEM;
+		break;
+	case EBADF:
+		e = V8PLUSERR_BADF;
+		break;
+	default:
+		e = V8PLUSERR_UNKNOWN;
+		break;
+	}
+
+	va_start(ap, fmt);
+	(void) v8plus_verror(e, fmt, ap);
+	va_end(ap);
+
+	return (NULL);
+}
+
 /*
  * The NULL nvlist with V8PLUSERR_NOERROR means we are returning void.
  */

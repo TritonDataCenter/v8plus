@@ -78,6 +78,11 @@ var BUILTIN_ERRORS = [
 		code: 'UNKNOWN',
 		msg: 'unknown error',
 		exception: 'Error'
+	},
+	{
+		code: 'BADF',
+		msg: 'bad file descriptor',
+		exception: 'Error'
 	}
 ];
 

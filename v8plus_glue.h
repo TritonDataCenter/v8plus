@@ -34,6 +34,7 @@ typedef uint64_t v8plus_jsfunc_t;
  * C constructor, destructor, and method prototypes.  See README.md.
  */
 typedef nvlist_t *(*v8plus_c_ctor_f)(const nvlist_t *, void **);
+typedef nvlist_t *(*v8plus_c_static_f)(const nvlist_t *);
 typedef nvlist_t *(*v8plus_c_method_f)(void *, const nvlist_t *);
 typedef void (*v8plus_c_dtor_f)(void *);
 
@@ -41,6 +42,11 @@ typedef struct v8plus_method_descr {
 	const char *md_name;
 	v8plus_c_method_f md_c_func;
 } v8plus_method_descr_t;
+
+typedef struct v8plus_static_descr {
+	const char *sd_name;
+	v8plus_c_static_f sd_c_func;
+} v8plus_static_descr_t;
 
 extern __thread v8plus_errno_t _v8plus_errno;
 extern __thread char _v8plus_errmsg[V8PLUS_ERRMSG_LEN];
@@ -68,6 +74,11 @@ extern void v8plus_panic(const char *, ...) __PRINTFLIKE(1) __NORETURN;
  * which the error occurred.
  */
 extern nvlist_t *v8plus_nverr(int, const char *);
+
+/*
+ * Similarly, for system errors.  Not all possible errno values are handled.
+ */
+extern nvlist_t *v8plus_syserr(int, const char *, ...);
 
 /*
  * Clear the errno and message.  This is needed only when one wishes to return
@@ -167,6 +178,8 @@ extern const char *v8plus_js_factory_name;
 extern const char *v8plus_js_class_name;
 extern const v8plus_method_descr_t v8plus_methods[];
 extern const uint_t v8plus_method_count;
+extern const v8plus_static_descr_t v8plus_static_methods[];
+extern const uint_t v8plus_static_method_count;
 
 #ifdef	__cplusplus
 }

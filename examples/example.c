@@ -129,6 +129,48 @@ example_add(void *op, const nvlist_t *ap)
 }
 
 static nvlist_t *
+example_static_add(const nvlist_t *ap)
+{
+	char buf[32];
+	example_t ae0, ae1;
+	nvlist_t *rp;
+	nvpair_t *pp;
+	uint64_t rv;
+	int err;
+
+	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) != 0) {
+		return (v8plus_error(V8PLUSERR_MISSINGARG,
+		    "argument 0 is required"));
+	}
+
+	(void) example_set_impl(&ae0, pp);
+	if (_v8plus_errno != V8PLUSERR_NOERROR)
+		return (NULL);
+
+	if (nvlist_lookup_nvpair((nvlist_t *)ap, "1", &pp) != 0) {
+		return (v8plus_error(V8PLUSERR_MISSINGARG,
+		    "argument 0 is required"));
+	}
+
+	(void) example_set_impl(&ae1, pp);
+	if (_v8plus_errno != V8PLUSERR_NOERROR)
+		return (NULL);
+
+	rv = ae0.e_val + ae1.e_val;
+
+	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
+		return (v8plus_nverr(err, NULL));
+
+	(void) snprintf(buf, sizeof (buf), "%llu", (unsigned long long)rv);
+	if ((err = nvlist_add_string(rp, "res", buf)) != 0) {
+		nvlist_free(rp);
+		return (v8plus_nverr(err, "res"));
+	}
+
+	return (rp);
+}
+
+static nvlist_t *
 example_multiply(void *op, const nvlist_t *ap)
 {
 	example_t *ep = op;
@@ -307,3 +349,12 @@ const v8plus_method_descr_t v8plus_methods[] = {
 };
 const uint_t v8plus_method_count =
     sizeof (v8plus_methods) / sizeof (v8plus_methods[0]);
+
+const v8plus_static_descr_t v8plus_static_methods[] = {
+	{
+		sd_name: "static_add",
+		sd_c_func: example_static_add
+	}
+};
+const uint_t v8plus_static_method_count =
+    sizeof (v8plus_static_methods) / sizeof (v8plus_static_methods[0]);
