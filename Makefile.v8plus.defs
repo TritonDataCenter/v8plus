@@ -8,6 +8,7 @@ WHICH_NODE =	dirname `bash -c 'hash node; hash -t node'`
 CC =		gcc
 CXX =		g++
 PREFIX_NODE =	$(WHICH_NODE:sh)/..
+MODULE_DIR =	../lib
 
 DEBUG_FLAGS =	-g
 WARN_FLAGS =	-Wall -Wextra -Werror

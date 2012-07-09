@@ -12,7 +12,7 @@ $(ERRNO_H): $(GENERRNO_JS) $(ERRNO_JSON)
 
 $(OBJS): $(ERRNO_H)
 
-$(MODULE).node: $(OBJS) $(MAPFILE)
+$(MODULE_DIR)/$(MODULE).node: $(OBJS) $(MAPFILE)
 	$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
 
 %.o: %.c
