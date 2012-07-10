@@ -61,7 +61,7 @@ example_ctor(const nvlist_t *ap, void **epp)
 		return (v8plus_error(V8PLUSERR_NOMEM, NULL));
 
 	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) == 0) {
-		(void)example_set_impl(ep, pp);
+		(void) example_set_impl(ep, pp);
 		if (_v8plus_errno != V8PLUSERR_NOERROR) {
 			free(ep);
 			return (NULL);
@@ -274,9 +274,9 @@ example_toString(void *op, const nvlist_t *ap)
 		return (v8plus_nverr(err, NULL));
 
 	/*
- 	 * Example of decorated exceptions.  Not strictly needed.  And yeah,
- 	 * this interface kind of sucks.
- 	 */
+	 * Example of decorated exceptions.  Not strictly needed.  And yeah,
+	 * this interface kind of sucks.
+	 */
 	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) == 0) {
 		nvlist_t *xp;
 
@@ -309,7 +309,7 @@ example_toString(void *op, const nvlist_t *ap)
 		return (rp);
 	}
 
-	(void)snprintf(vbuf, sizeof (vbuf), "%llu",
+	(void) snprintf(vbuf, sizeof (vbuf), "%llu",
 	    (unsigned long long)ep->e_val);
 
 	if ((err = nvlist_add_string(rp, "res", vbuf)) != 0) {

@@ -163,32 +163,36 @@ v8plus_typeof(const nvpair_t *pp)
 }
 
 static int
-v8plus_arg_value(v8plus_type_t t, nvpair_t *pp, void *vp)
+v8plus_arg_value(v8plus_type_t t, const nvpair_t *pp, void *vp)
 {
-	data_type_t dt = nvpair_type(pp);
+	data_type_t dt = nvpair_type((nvpair_t *)pp);
 
 	switch (t) {
 	case V8PLUS_TYPE_NONE:
 		return (-1);
 	case V8PLUS_TYPE_STRING:
 		if (dt == DATA_TYPE_STRING) {
-			if (vp != NULL)
-				(void) nvpair_value_string(pp, (char **)vp);
+			if (vp != NULL) {
+				(void) nvpair_value_string((nvpair_t *)pp,
+				    (char **)vp);
+			}
 			return (0);
 		}
 		return (-1);
 	case V8PLUS_TYPE_NUMBER:
 		if (dt == DATA_TYPE_DOUBLE) {
-			if (vp != NULL)
-				(void) nvpair_value_double(pp, (double *)vp);
+			if (vp != NULL) {
+				(void) nvpair_value_double((nvpair_t *)pp,
+				    (double *)vp);
+			}
 			return (0);
 		}
 		return (-1);
 	case V8PLUS_TYPE_BOOLEAN:
 		if (dt == DATA_TYPE_BOOLEAN_VALUE) {
 			if (vp != NULL) {
-				(void) nvpair_value_boolean_value(pp,
-				    (boolean_t *)vp);
+				(void) nvpair_value_boolean_value(
+				    (nvpair_t *)pp, (boolean_t *)vp);
 			}
 			return (0);
 		}
@@ -198,8 +202,8 @@ v8plus_arg_value(v8plus_type_t t, nvpair_t *pp, void *vp)
 			uint_t nv;
 			uint64_t *vpp;
 
-			if (nvpair_value_uint64_array(pp, &vpp, &nv) == 0 &&
-			    nv == 1) {
+			if (nvpair_value_uint64_array((nvpair_t *)pp,
+			    &vpp, &nv) == 0 && nv == 1) {
 				if (vp != NULL)
 					*(v8plus_jsfunc_t *)vp = vpp[0];
 				return (0);
@@ -208,8 +212,10 @@ v8plus_arg_value(v8plus_type_t t, nvpair_t *pp, void *vp)
 		return (-1);
 	case V8PLUS_TYPE_OBJECT:
 		if (dt == DATA_TYPE_NVLIST) {
-			if (vp != NULL)
-				(void) nvpair_value_nvlist(pp, (nvlist_t **)vp);
+			if (vp != NULL) {
+				(void) nvpair_value_nvlist((nvpair_t *)pp,
+				    (nvlist_t **)vp);
+			}
 			return (0);
 		}
 		return (-1);
@@ -226,7 +232,7 @@ v8plus_arg_value(v8plus_type_t t, nvpair_t *pp, void *vp)
 		return (dt == DATA_TYPE_BOOLEAN ? 0 : -1);
 	case V8PLUS_TYPE_ANY:
 		if (vp != NULL)
-			*(nvpair_t **)vp = pp;
+			*(const nvpair_t **)vp = pp;
 		return (0);
 	case V8PLUS_TYPE_INVALID:
 		if (vp != NULL)
@@ -299,10 +305,10 @@ v8plus_vobj(uint_t level, v8plus_type_t t, va_list *ap)
 	nvlist_t *rp;
 
 	/*
- 	 * Do not call va_start() or va_end() in this function!  We are limited
- 	 * to a single traversal of the arguments so that we can recurse to
- 	 * handle embedded object definitions.
- 	 */
+	 * Do not call va_start() or va_end() in this function!  We are limited
+	 * to a single traversal of the arguments so that we can recurse to
+	 * handle embedded object definitions.
+	 */
 
 	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
 		return (v8plus_nverr(err, NULL));
@@ -314,34 +320,44 @@ v8plus_vobj(uint_t level, v8plus_type_t t, va_list *ap)
 		case V8PLUS_TYPE_STRING:
 		{
 			char *s = va_arg(*ap, char *);
-			if ((err = nvlist_add_string(rp, name, s)) != 0)
+			if ((err = nvlist_add_string(rp, name, s)) != 0) {
+				nvlist_free(rp);
 				return (v8plus_nverr(err, name));
+			}
 			break;
 		}
 		case V8PLUS_TYPE_NUMBER:
 		{
 			double d = va_arg(*ap, double);
-			if ((err = nvlist_add_double(rp, name, d)) != 0)
+			if ((err = nvlist_add_double(rp, name, d)) != 0) {
+				nvlist_free(rp);
 				return (v8plus_nverr(err, name));
+			}
 			break;
 		}
 		case V8PLUS_TYPE_BOOLEAN:
 		{
 			boolean_t b = va_arg(*ap, boolean_t);
 			if ((err = nvlist_add_boolean_value(rp,
-			    name, b)) != 0)
+			    name, b)) != 0) {
+				nvlist_free(rp);
 				return (v8plus_nverr(err, name));
+			}
 			break;
 		}
 		case V8PLUS_TYPE_JSFUNC:
 		{
 			v8plus_jsfunc_t j = va_arg(*ap, v8plus_jsfunc_t);
 			if ((err = nvlist_add_uint64_array(rp,
-			    name, &j, 1)) != 0)
+			    name, &j, 1)) != 0) {
+				nvlist_free(rp);
 				return (v8plus_nverr(err, name));
+			}
 			if ((err = nvlist_add_string_array(rp,
-			    V8PLUS_JSF_COOKIE, NULL, 0)) != 0)
+			    V8PLUS_JSF_COOKIE, NULL, 0)) != 0) {
+				nvlist_free(rp);
 				return (v8plus_nverr(err, V8PLUS_JSF_COOKIE));
+			}
 			v8plus_jsfunc_hold(j);
 			break;
 		}
@@ -349,29 +365,40 @@ v8plus_vobj(uint_t level, v8plus_type_t t, va_list *ap)
 		{
 			nt = va_arg(*ap, v8plus_type_t);
 			nvlist_t *lp = v8plus_vobj(level + 1, nt, ap);
-			if (lp == NULL)
+			if (lp == NULL) {
+				nvlist_free(rp);
 				return (NULL);
-			if ((err = nvlist_add_nvlist(rp, name, lp)) != 0)
+			}
+			if ((err = nvlist_add_nvlist(rp, name, lp)) != 0) {
+				nvlist_free(rp);
 				return (v8plus_nverr(err, name));
+			}
 			break;
 		}
 		case V8PLUS_TYPE_NULL:
-			if ((err = nvlist_add_byte(rp, name, 0)) != 0)
+			if ((err = nvlist_add_byte(rp, name, 0)) != 0) {
+				nvlist_free(rp);
 				return (v8plus_nverr(err, name));
+			}
 			break;
 		case V8PLUS_TYPE_UNDEFINED:
-			if ((err = nvlist_add_boolean(rp, name)) != 0)
+			if ((err = nvlist_add_boolean(rp, name)) != 0) {
+				nvlist_free(rp);
 				return (v8plus_nverr(err, name));
+			}
 			break;
 		case V8PLUS_TYPE_ANY:
 		{
 			nvpair_t *pp = va_arg(*ap, nvpair_t *);
-			if ((err = nvlist_add_nvpair(rp, pp)) != 0)
+			if ((err = nvlist_add_nvpair(rp, pp)) != 0) {
+				nvlist_free(rp);
 				return (v8plus_nverr(err, name));
+			}
 			break;
 		}
 		case V8PLUS_TYPE_INVALID:
 		default:
+			nvlist_free(rp);
 			return (v8plus_error(V8PLUSERR_YOUSUCK,
 			    "invalid property type %d", nt));
 		}
