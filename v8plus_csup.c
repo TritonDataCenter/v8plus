@@ -240,7 +240,7 @@ v8plus_arg_value(v8plus_type_t t, nvpair_t *pp, void *vp)
 int
 v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 {
-	v8plus_type_t nt = t;
+	v8plus_type_t nt;
 	nvpair_t *pp;
 	void *vp;
 	va_list ap;
@@ -249,10 +249,7 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 
 	va_start(ap, t);
 
-	for (i = 0; ; i++) {
-		if (nt == V8PLUS_TYPE_NONE)
-			break;
-
+	for (i = 0, nt = t; nt != V8PLUS_TYPE_NONE; i++) {
 		(void) va_arg(ap, void *);
 
 		(void) snprintf(buf, sizeof (buf), "%u", i);
@@ -273,13 +270,9 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 			return (-1);
 	}
 
-	nt = t;
 	va_start(ap, t);
 
-	for (i = 0; ; i++) {
-		if (nt == V8PLUS_TYPE_NONE)
-			break;
-
+	for (i = 0, nt = t; nt != V8PLUS_TYPE_NONE; i++) {
 		vp = va_arg(ap, void *);
 
 		(void) snprintf(buf, sizeof (buf), "%u", i);
@@ -315,9 +308,8 @@ v8plus_vobj(uint_t level, v8plus_type_t t, va_list *ap)
 		return (v8plus_nverr(err, NULL));
 
 	while (nt != V8PLUS_TYPE_NONE) {
-		(void) fprintf(stderr, "type %d\n", nt);
 		name = va_arg(*ap, char *);
-		(void) fprintf(stderr, "name %s\n", name);
+
 		switch (nt) {
 		case V8PLUS_TYPE_STRING:
 		{
