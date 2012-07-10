@@ -16,6 +16,7 @@ extern "C" {
 #define	V8PLUS_ARG_F_NOEXTRA	0x01
 
 #define	V8PLUS_ERRMSG_LEN	512
+#define	V8PLUS_JSF_COOKIE	".__v8plus_jsfunc_cookie"
 
 typedef enum v8plus_type {
 	V8PLUS_TYPE_NONE = 0,		/* N/A */
@@ -125,6 +126,7 @@ extern void v8plus_obj_rele(const void *);
  */
 extern v8plus_type_t v8plus_typeof(const nvpair_t *);
 extern int v8plus_args(const nvlist_t *, uint_t, v8plus_type_t t, ...);
+extern nvlist_t *v8plus_obj(v8plus_type_t, ...);
 
 /*
  * Perform a background, possibly blocking and/or expensive, task.  First,

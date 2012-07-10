@@ -112,7 +112,7 @@ nvlist_add_v8_Value(nvlist_t *lp, const char *name,
 			++cbnext;
 		cbhash.insert(std::make_pair(cbnext, ch));
 
-		LA_VA(lp, string, ".__v8plus_jsfunc_cookie", NULL, 0, err);
+		LA_VA(lp, string, V8PLUS_JSF_COOKIE, NULL, 0, err);
 		LA_VA(lp, uint64, name, &cbnext, 1, err);
 	} else if (vh->IsObject()) {
 		v8::Local<v8::Object> oh = vh->ToObject();
@@ -594,7 +594,7 @@ nvlist_free(nvlist_t *lp)
 			v8plus_panic("unable to find nvlist_free");
 	}
 
-	if (nvlist_exists(lp, ".__v8plus_jsfunc_cookie")) {
+	if (nvlist_exists(lp, V8PLUS_JSF_COOKIE)) {
 		while ((pp = nvlist_next_nvpair(lp, pp)) != NULL) {
 			if (nvpair_type(pp) != DATA_TYPE_UINT64_ARRAY)
 				continue;

@@ -78,3 +78,5 @@ g.add(400);
 
 console.log('1000000000000000000 + 3333333333333333333 = ' +
     example.static_add('1000000000000000000', '3333333333333333333'));
+
+console.log(example.static_object());

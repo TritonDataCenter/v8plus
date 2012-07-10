@@ -320,6 +320,40 @@ example_toString(void *op, const nvlist_t *ap)
 	return (rp);
 }
 
+static nvlist_t *
+example_static_object(const nvlist_t *ap __UNUSED)
+{
+	nvlist_t *rp, *lp;
+	int err;
+
+	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
+		return (v8plus_nverr(err, NULL));
+
+	lp = v8plus_obj(
+	    V8PLUS_TYPE_NUMBER, "fred", (double)555.5,
+	    V8PLUS_TYPE_STRING, "barney", "the sky is blue",
+	    V8PLUS_TYPE_OBJECT, "betty",
+		V8PLUS_TYPE_STRING, "bert", "ernie",
+		V8PLUS_TYPE_BOOLEAN, "coffeescript_is_a_joke", B_TRUE,
+		V8PLUS_TYPE_NONE,
+	    V8PLUS_TYPE_NULL, "wilma",
+	    V8PLUS_TYPE_UNDEFINED, "pebbles",
+	    V8PLUS_TYPE_NUMBER, "bam-bam", (double)-32,
+	    V8PLUS_TYPE_NONE);
+
+	if (lp == NULL) {
+		nvlist_free(rp);
+		return (NULL);
+	}
+
+	if ((err = nvlist_add_nvlist(rp, "res", lp)) != 0) {
+		nvlist_free(rp);
+		return (v8plus_nverr(err, "res"));
+	}
+
+	return (rp);
+}
+
 /*
  * v8+ boilerplate
  */
@@ -356,6 +390,10 @@ const v8plus_static_descr_t v8plus_static_methods[] = {
 	{
 		sd_name: "static_add",
 		sd_c_func: example_static_add
+	},
+	{
+		sd_name: "static_object",
+		sd_c_func: example_static_object
 	}
 };
 const uint_t v8plus_static_method_count =
