@@ -80,6 +80,21 @@ var BUILTIN_ERRORS = [
 		exception: 'Error'
 	},
 	{
+		code: 'MISSINGARG',
+		msg: 'missing argument is required',
+		exception: 'TypeError'
+	},
+	{
+		code: 'BADARG',
+		msg: 'argument is of incorrect type',
+		exception: 'TypeError'
+	},
+	{
+		code: 'EXTRAARG',
+		msg: 'superfluous argument(s) detected',
+		exception: 'TypeError'
+	},
+	{
 		code: 'BADF',
 		msg: 'bad file descriptor',
 		exception: 'Error'

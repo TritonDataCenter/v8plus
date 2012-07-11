@@ -2,21 +2,6 @@
 	"error_base": "0x2000",
 	"errors": [
 	{
-		"code": "BADARG",
-		"msg": "incorrect type for argument",
-		"exception": "TypeError"
-	},
-	{
-		"code": "MISSINGARG",
-		"msg": "missing argument",
-		"exception": "TypeError"
-	},
-	{
-		"code": "EXTRAARG",
-		"msg": "illegal superfluous argument",
-		"exception": "TypeError"
-	},
-	{
 		"code": "IMPRECISE",
 		"msg": "numerical value lacks adequate precision",
 		"exception": "TypeError"
