@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <strings.h>
+#include <errno.h>
 #include <uv.h>
 #include "v8plus_glue.h"
 
@@ -20,7 +21,7 @@ typedef struct v8plus_uv_ctx {
 	v8plus_completion_f vuc_completion;
 } v8plus_uv_ctx_t;
 
-void *
+nvlist_t *
 v8plus_verror(v8plus_errno_t e, const char *fmt, va_list ap)
 {
 	if (fmt == NULL) {
@@ -38,7 +39,7 @@ v8plus_verror(v8plus_errno_t e, const char *fmt, va_list ap)
 	return (NULL);
 }
 
-void *
+nvlist_t *
 v8plus_error(v8plus_errno_t e, const char *fmt, ...)
 {
 	va_list ap;
@@ -238,6 +239,21 @@ v8plus_arg_value(v8plus_type_t t, const nvpair_t *pp, void *vp)
 		if (vp != NULL)
 			*(data_type_t *)vp = dt;
 		return (0);
+	case V8PLUS_TYPE_STRNUMBER64:
+		if (dt == DATA_TYPE_STRING) {
+			char *s;
+			uint64_t v;
+
+			(void) nvpair_value_string((nvpair_t *)pp, &s);
+			errno = 0;
+			v = (uint64_t)strtoull(s, NULL, 0);
+			if (errno != 0)
+				return (-1);
+			if (vp != NULL)
+				*(uint64_t *)vp = v;
+			return (0);
+		}
+		return (-1);
 	default:
 		return (-1);
 	}
@@ -297,7 +313,7 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 }
 
 static nvlist_t *
-v8plus_vobj(uint_t level, v8plus_type_t t, va_list *ap)
+v8plus_vobj(v8plus_type_t t, va_list *ap)
 {
 	v8plus_type_t nt = t;
 	char *name;
@@ -364,7 +380,7 @@ v8plus_vobj(uint_t level, v8plus_type_t t, va_list *ap)
 		case V8PLUS_TYPE_OBJECT:
 		{
 			nt = va_arg(*ap, v8plus_type_t);
-			nvlist_t *lp = v8plus_vobj(level + 1, nt, ap);
+			nvlist_t *lp = v8plus_vobj(nt, ap);
 			if (lp == NULL) {
 				nvlist_free(rp);
 				return (NULL);
@@ -396,6 +412,17 @@ v8plus_vobj(uint_t level, v8plus_type_t t, va_list *ap)
 			}
 			break;
 		}
+		case V8PLUS_TYPE_STRNUMBER64:
+		{
+			uint64_t v = va_arg(*ap, uint64_t);
+			char s[32];
+			(void) snprintf(s, sizeof (s), "%" PRIu64, v);
+			if ((err = nvlist_add_string(rp, name, s)) != 0) {
+				nvlist_free(rp);
+				return (v8plus_nverr(err, name));
+			}
+			break;
+		}
 		case V8PLUS_TYPE_INVALID:
 		default:
 			nvlist_free(rp);
@@ -416,7 +443,7 @@ v8plus_obj(v8plus_type_t t, ...)
 	va_list ap;
 
 	va_start(ap, t);
-	rp = v8plus_vobj(0, t, &ap);
+	rp = v8plus_vobj(t, &ap);
 	va_end(ap);
 
 	return (rp);

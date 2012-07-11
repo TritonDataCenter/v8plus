@@ -28,7 +28,8 @@ typedef enum v8plus_type {
 	V8PLUS_TYPE_NULL,		/* -- */
 	V8PLUS_TYPE_UNDEFINED,		/* -- */
 	V8PLUS_TYPE_INVALID,		/* data_type_t */
-	V8PLUS_TYPE_ANY			/* nvpair_t * */
+	V8PLUS_TYPE_ANY,		/* nvpair_t * */
+	V8PLUS_TYPE_STRNUMBER64		/* uint64_t */
 } v8plus_type_t;
 
 typedef uint64_t v8plus_jsfunc_t;
@@ -60,8 +61,8 @@ extern __thread char _v8plus_errmsg[V8PLUS_ERRMSG_LEN];
  * an exception to be thrown in JavaScript if your method later returns NULL
  * or an nvlist with an "err" member.
  */
-extern void *v8plus_verror(v8plus_errno_t, const char *, va_list);
-extern void *v8plus_error(v8plus_errno_t, const char *, ...);
+extern nvlist_t *v8plus_verror(v8plus_errno_t, const char *, va_list);
+extern nvlist_t *v8plus_error(v8plus_errno_t, const char *, ...);
 
 /*
  * Suicide.  It's always an option.  Try to avoid using this as it's not

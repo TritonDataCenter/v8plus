@@ -339,6 +339,7 @@ example_static_object(const nvlist_t *ap __UNUSED)
 	    V8PLUS_TYPE_NULL, "wilma",
 	    V8PLUS_TYPE_UNDEFINED, "pebbles",
 	    V8PLUS_TYPE_NUMBER, "bam-bam", (double)-32,
+	    V8PLUS_TYPE_STRNUMBER64, "dino", 0x1234567812345678ULL,
 	    V8PLUS_TYPE_NONE);
 
 	if (lp == NULL) {
