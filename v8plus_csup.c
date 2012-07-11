@@ -3,6 +3,7 @@
  */
 
 #include <sys/ccompile.h>
+#include <sys/debug.h>
 #include <stdarg.h>
 #include <string.h>
 #include <strings.h>
@@ -275,11 +276,17 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 		(void) va_arg(ap, void *);
 
 		(void) snprintf(buf, sizeof (buf), "%u", i);
-		if (nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) != 0)
+		if (nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) != 0) {
+			(void) v8plus_error(V8PLUSERR_MISSINGARG,
+			    "argument %u is required", i);
 			return (-1);
+		}
 
-		if (v8plus_arg_value(nt, pp, NULL) != 0)
+		if (v8plus_arg_value(nt, pp, NULL) != 0) {
+			(void) v8plus_error(V8PLUSERR_BADARG,
+			    "argument %u is of incorrect type", i);
 			return (-1);
+		}
 
 		nt = va_arg(ap, data_type_t);
 	}
@@ -288,8 +295,11 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 
 	if (flags & V8PLUS_ARG_F_NOEXTRA) {
 		(void) snprintf(buf, sizeof (buf), "%u", i);
-		if (nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) == 0)
+		if (nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) == 0) {
+			(void) v8plus_error(V8PLUSERR_EXTRAARG,
+			    "superfluous extra argument(s) detected");
 			return (-1);
+		}
 	}
 
 	va_start(ap, t);
@@ -298,11 +308,8 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 		vp = va_arg(ap, void *);
 
 		(void) snprintf(buf, sizeof (buf), "%u", i);
-		if (nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) != 0)
-			return (-1);
-
-		if (v8plus_arg_value(nt, pp, vp) != 0)
-			return (-1);
+		VERIFY(nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) == 0);
+		VERIFY(v8plus_arg_value(nt, pp, vp) == 0);
 
 		nt = va_arg(ap, data_type_t);
 	}
