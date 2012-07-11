@@ -347,7 +347,18 @@ example_static_object(const nvlist_t *ap __UNUSED)
 		return (NULL);
 	}
 
-	if ((err = nvlist_add_nvlist(rp, "res", lp)) != 0) {
+	if (v8plus_obj_setprops(lp,
+	    V8PLUS_TYPE_STRNUMBER64, "dino", 0x1234567812345678ULL,
+	    V8PLUS_TYPE_NONE) != 0) {
+		nvlist_free(rp);
+		nvlist_free(lp);
+		return (NULL);
+	}
+
+	err = nvlist_add_nvlist(rp, "res", lp);
+	nvlist_free(lp);
+
+	if (err != 0) {
 		nvlist_free(rp);
 		return (v8plus_nverr(err, "res"));
 	}

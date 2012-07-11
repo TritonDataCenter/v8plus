@@ -128,6 +128,7 @@ extern void v8plus_obj_rele(const void *);
 extern v8plus_type_t v8plus_typeof(const nvpair_t *);
 extern int v8plus_args(const nvlist_t *, uint_t, v8plus_type_t t, ...);
 extern nvlist_t *v8plus_obj(v8plus_type_t, ...);
+extern int v8plus_obj_setprops(nvlist_t *, v8plus_type_t, ...);
 
 /*
  * Perform a background, possibly blocking and/or expensive, task.  First,

@@ -312,13 +312,12 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 	return (0);
 }
 
-static nvlist_t *
-v8plus_vobj(v8plus_type_t t, va_list *ap)
+static int
+v8plus_obj_vsetprops(nvlist_t *lp, v8plus_type_t t, va_list *ap)
 {
 	v8plus_type_t nt = t;
 	char *name;
 	int err;
-	nvlist_t *rp;
 
 	/*
 	 * Do not call va_start() or va_end() in this function!  We are limited
@@ -326,53 +325,51 @@ v8plus_vobj(v8plus_type_t t, va_list *ap)
 	 * handle embedded object definitions.
 	 */
 
-	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
-		return (v8plus_nverr(err, NULL));
-
 	while (nt != V8PLUS_TYPE_NONE) {
 		name = va_arg(*ap, char *);
+		(void) printf("name: %s type: %d\n", name, nt);
 
 		switch (nt) {
 		case V8PLUS_TYPE_STRING:
 		{
 			char *s = va_arg(*ap, char *);
-			if ((err = nvlist_add_string(rp, name, s)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, name));
+			if ((err = nvlist_add_string(lp, name, s)) != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
 			break;
 		}
 		case V8PLUS_TYPE_NUMBER:
 		{
 			double d = va_arg(*ap, double);
-			if ((err = nvlist_add_double(rp, name, d)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, name));
+			if ((err = nvlist_add_double(lp, name, d)) != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
 			break;
 		}
 		case V8PLUS_TYPE_BOOLEAN:
 		{
 			boolean_t b = va_arg(*ap, boolean_t);
-			if ((err = nvlist_add_boolean_value(rp,
+			if ((err = nvlist_add_boolean_value(lp,
 			    name, b)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, name));
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
 			break;
 		}
 		case V8PLUS_TYPE_JSFUNC:
 		{
 			v8plus_jsfunc_t j = va_arg(*ap, v8plus_jsfunc_t);
-			if ((err = nvlist_add_uint64_array(rp,
+			if ((err = nvlist_add_uint64_array(lp,
 			    name, &j, 1)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, name));
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
-			if ((err = nvlist_add_string_array(rp,
+			if ((err = nvlist_add_string_array(lp,
 			    V8PLUS_JSF_COOKIE, NULL, 0)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, V8PLUS_JSF_COOKIE));
+				(void) v8plus_nverr(err, V8PLUS_JSF_COOKIE);
+				return (-1);
 			}
 			v8plus_jsfunc_hold(j);
 			break;
@@ -380,35 +377,42 @@ v8plus_vobj(v8plus_type_t t, va_list *ap)
 		case V8PLUS_TYPE_OBJECT:
 		{
 			nt = va_arg(*ap, v8plus_type_t);
-			nvlist_t *lp = v8plus_vobj(nt, ap);
-			if (lp == NULL) {
-				nvlist_free(rp);
-				return (NULL);
+			nvlist_t *slp;
+
+			err = nvlist_alloc(&slp, NV_UNIQUE_NAME, 0);
+			if (err != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
-			if ((err = nvlist_add_nvlist(rp, name, lp)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, name));
+			if (v8plus_obj_vsetprops(slp, nt, ap) != 0)
+				return (-1);
+
+			err = nvlist_add_nvlist(lp, name, slp);
+			nvlist_free(slp);
+			if (err != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
 			break;
 		}
 		case V8PLUS_TYPE_NULL:
-			if ((err = nvlist_add_byte(rp, name, 0)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, name));
+			if ((err = nvlist_add_byte(lp, name, 0)) != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
 			break;
 		case V8PLUS_TYPE_UNDEFINED:
-			if ((err = nvlist_add_boolean(rp, name)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, name));
+			if ((err = nvlist_add_boolean(lp, name)) != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
 			break;
 		case V8PLUS_TYPE_ANY:
 		{
 			nvpair_t *pp = va_arg(*ap, nvpair_t *);
-			if ((err = nvlist_add_nvpair(rp, pp)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, name));
+			if ((err = nvlist_add_nvpair(lp, pp)) != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
 			break;
 		}
@@ -417,23 +421,23 @@ v8plus_vobj(v8plus_type_t t, va_list *ap)
 			uint64_t v = va_arg(*ap, uint64_t);
 			char s[32];
 			(void) snprintf(s, sizeof (s), "%" PRIu64, v);
-			if ((err = nvlist_add_string(rp, name, s)) != 0) {
-				nvlist_free(rp);
-				return (v8plus_nverr(err, name));
+			if ((err = nvlist_add_string(lp, name, s)) != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
 			}
 			break;
 		}
 		case V8PLUS_TYPE_INVALID:
 		default:
-			nvlist_free(rp);
-			return (v8plus_error(V8PLUSERR_YOUSUCK,
-			    "invalid property type %d", nt));
+			(void) v8plus_error(V8PLUSERR_YOUSUCK,
+			    "invalid property type %d", nt);
+			return (-1);
 		}
 
 		nt = va_arg(*ap, v8plus_type_t);
 	}
 
-	return (rp);
+	return (0);
 }
 
 nvlist_t *
@@ -441,12 +445,34 @@ v8plus_obj(v8plus_type_t t, ...)
 {
 	nvlist_t *rp;
 	va_list ap;
+	int err;
+
+	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
+		return (v8plus_nverr(err, NULL));
 
 	va_start(ap, t);
-	rp = v8plus_vobj(t, &ap);
+	err = v8plus_obj_vsetprops(rp, t, &ap);
 	va_end(ap);
 
+	if (err != 0) {
+		nvlist_free(rp);
+		rp = NULL;
+	}
+
 	return (rp);
+}
+
+int
+v8plus_obj_setprops(nvlist_t *lp, v8plus_type_t t, ...)
+{
+	va_list ap;
+	int err;
+
+	va_start(ap, t);
+	err = v8plus_obj_vsetprops(lp, t, &ap);
+	va_end(ap);
+
+	return (err);
 }
 
 static void
