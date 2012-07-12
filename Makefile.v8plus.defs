@@ -9,7 +9,7 @@ CC =		gcc
 CXX =		g++
 CTFCONVERT =	/opt/onbld/bin/i386/ctfconvert
 CTFMERGE =	/opt/onbld/bin/i386/ctfmerge
-PREFIX_NODE =	$(WHICH_NODE:sh)/..
+PREFIX_NODE =	$(shell $(WHICH_NODE))/..
 MODULE_DIR =	../lib
 
 CTF_LABEL =	v8plus_0.0.1
