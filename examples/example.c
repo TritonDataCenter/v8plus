@@ -17,8 +17,8 @@ example_set_impl(example_t *ep, nvpair_t *pp)
 	const char *ev;
 	uint64_t v;
 
-	switch (nvpair_type(pp)) {
-	case DATA_TYPE_DOUBLE:
+	switch (v8plus_typeof(pp)) {
+	case V8PLUS_TYPE_NUMBER:
 		(void) nvpair_value_double(pp, &dv);
 		if (dv > (1ULL << DBL_MANT_DIG) - 1) {
 			return (v8plus_error(V8PLUSERR_IMPRECISE,
@@ -26,7 +26,7 @@ example_set_impl(example_t *ep, nvpair_t *pp)
 		}
 		ep->e_val = (uint64_t)dv;
 		break;
-	case DATA_TYPE_STRING:
+	case V8PLUS_TYPE_STRING:
 		(void) nvpair_value_string(pp, (char **)&sv);
 		errno = 0;
 		v = (uint64_t)strtoull(sv, (char **)&ev, 0);
@@ -40,12 +40,12 @@ example_set_impl(example_t *ep, nvpair_t *pp)
 		}
 		ep->e_val = v;
 		break;
-	case DATA_TYPE_BOOLEAN:	/* undefined */
+	case V8PLUS_TYPE_UNDEFINED:
 		ep->e_val = 0;
 		break;
 	default:
 		return (v8plus_error(V8PLUSERR_BADARG,
-		    "argument 0 is of incorrect type %d", nvpair_type(pp)));
+		    "argument 0 is of incorrect type %d", v8plus_typeof(pp)));
 	}
 
 	return (v8plus_void());
@@ -55,19 +55,20 @@ static nvlist_t *
 example_ctor(const nvlist_t *ap, void **epp)
 {
 	nvpair_t *pp;
-	example_t *ep = malloc(sizeof (example_t));
+	example_t *ep;
 
-	if (ep == NULL)
+	if (v8plus_args(ap, V8PLUS_ARG_F_NOEXTRA, V8PLUS_TYPE_NONE) != 0 &&
+	    v8plus_args(ap, V8PLUS_ARG_F_NOEXTRA,
+	    V8PLUS_TYPE_ANY, &pp, V8PLUS_TYPE_NONE) != 0)
+		return (NULL);
+
+	if ((ep = malloc(sizeof (example_t))) == NULL)
 		return (v8plus_error(V8PLUSERR_NOMEM, NULL));
 
-	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) == 0) {
-		(void) example_set_impl(ep, pp);
-		if (_v8plus_errno != V8PLUSERR_NOERROR) {
-			free(ep);
-			return (NULL);
-		}
-	} else {
-		ep->e_val = 0;
+	(void) example_set_impl(ep, pp);
+	if (_v8plus_errno != V8PLUSERR_NOERROR) {
+		free(ep);
+		return (NULL);
 	}
 
 	*epp = ep;
@@ -87,12 +88,10 @@ example_set(void *op, const nvlist_t *ap)
 	nvpair_t *pp;
 	example_t *ep = op;
 
-	if (v8plus_args(ap, 0,
+	if (v8plus_args(ap, V8PLUS_ARG_F_NOEXTRA,
 	    V8PLUS_TYPE_ANY, &pp,
-	    V8PLUS_TYPE_NONE) != 0) {
-		return (v8plus_error(V8PLUSERR_MISSINGARG,
-		    "argument 0 is required"));
-	}
+	    V8PLUS_TYPE_NONE) != 0)
+		return (NULL);
 
 	(void) example_set_impl(ep, pp);
 	if (_v8plus_errno != V8PLUSERR_NOERROR)
@@ -110,10 +109,9 @@ example_add(void *op, const nvlist_t *ap)
 	nvlist_t *eap;
 	nvlist_t *erp;
 
-	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) != 0) {
-		return (v8plus_error(V8PLUSERR_MISSINGARG,
-		    "argument 0 is required"));
-	}
+	if (v8plus_args(ap, V8PLUS_ARG_F_NOEXTRA,
+	    V8PLUS_TYPE_ANY, &pp, V8PLUS_TYPE_NONE) != 0)
+		return (NULL);
 
 	(void) example_set_impl(&ae, pp);
 	if (_v8plus_errno != V8PLUSERR_NOERROR)
@@ -121,11 +119,12 @@ example_add(void *op, const nvlist_t *ap)
 
 	ep->e_val += ae.e_val;
 
-	(void) nvlist_alloc(&eap, NV_UNIQUE_NAME, 0);
-	(void) nvlist_add_string(eap, "0", "add");
-	erp = v8plus_method_call(op, "__emit", eap);
-	nvlist_free(eap);
-	nvlist_free(erp);
+	eap = v8plus_obj(V8PLUS_TYPE_STRING, "0", "add", V8PLUS_TYPE_NONE);
+	if (eap != NULL) {
+		erp = v8plus_method_call(op, "__emit", eap);
+		nvlist_free(eap);
+		nvlist_free(erp);
+	}
 
 	return (v8plus_void());
 }
@@ -133,43 +132,29 @@ example_add(void *op, const nvlist_t *ap)
 static nvlist_t *
 example_static_add(const nvlist_t *ap)
 {
-	char buf[32];
 	example_t ae0, ae1;
-	nvlist_t *rp;
-	nvpair_t *pp;
+	nvpair_t *pp0, *pp1;
 	uint64_t rv;
-	int err;
 
-	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) != 0) {
-		return (v8plus_error(V8PLUSERR_MISSINGARG,
-		    "argument 0 is required"));
-	}
+	if (v8plus_args(ap, V8PLUS_ARG_F_NOEXTRA,
+	    V8PLUS_TYPE_ANY, &pp0,
+	    V8PLUS_TYPE_ANY, &pp1,
+	    V8PLUS_TYPE_NONE) != 0)
+		return (NULL);
 
-	(void) example_set_impl(&ae0, pp);
+	(void) example_set_impl(&ae0, pp0);
 	if (_v8plus_errno != V8PLUSERR_NOERROR)
 		return (NULL);
 
-	if (nvlist_lookup_nvpair((nvlist_t *)ap, "1", &pp) != 0) {
-		return (v8plus_error(V8PLUSERR_MISSINGARG,
-		    "argument 0 is required"));
-	}
-
-	(void) example_set_impl(&ae1, pp);
+	(void) example_set_impl(&ae1, pp1);
 	if (_v8plus_errno != V8PLUSERR_NOERROR)
 		return (NULL);
 
 	rv = ae0.e_val + ae1.e_val;
 
-	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
-		return (v8plus_nverr(err, NULL));
-
-	(void) snprintf(buf, sizeof (buf), "%llu", (unsigned long long)rv);
-	if ((err = nvlist_add_string(rp, "res", buf)) != 0) {
-		nvlist_free(rp);
-		return (v8plus_nverr(err, "res"));
-	}
-
-	return (rp);
+	return (v8plus_obj(
+	    V8PLUS_TYPE_STRNUMBER64, "res", rv,
+	    V8PLUS_TYPE_NONE));
 }
 
 static nvlist_t *
@@ -179,10 +164,9 @@ example_multiply(void *op, const nvlist_t *ap)
 	example_t ae;
 	nvpair_t *pp;
 
-	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) != 0) {
-		return (v8plus_error(V8PLUSERR_MISSINGARG,
-		    "argument 0 is required"));
-	}
+	if (v8plus_args(ap, V8PLUS_ARG_F_NOEXTRA,
+	    V8PLUS_TYPE_ANY, &pp, V8PLUS_TYPE_NONE) != 0)
+		return (NULL);
 
 	(void) example_set_impl(&ae, pp);
 	if (_v8plus_errno != V8PLUSERR_NOERROR)
@@ -195,6 +179,7 @@ example_multiply(void *op, const nvlist_t *ap)
 
 typedef struct async_multiply_ctx {
 	example_t amc_operand;
+	uint64_t amc_result;
 	v8plus_jsfunc_t amc_cb;
 } async_multiply_ctx_t;
 
@@ -205,26 +190,27 @@ async_multiply_worker(void *op, void *ctx)
 	async_multiply_ctx_t *cp = ctx;
 	example_t *ap = &cp->amc_operand;
 
-	ep->e_val *= ap->e_val;	/* XXX lock */
+	cp->amc_result = ep->e_val * ap->e_val;
 
-	return (v8plus_void());
+	return (NULL);
 }
 
 static void
-async_multiply_done(void *op, void *ctx, void *res)
+async_multiply_done(void *op, void *ctx, void *res __UNUSED)
 {
 	async_multiply_ctx_t *cp = ctx;
+	example_t *ep = op;
 	nvlist_t *rp;
 	nvlist_t *ap;
 
-	(void) res;
-	(void) op;
+	ep->e_val = cp->amc_result;
+	ap = v8plus_obj(V8PLUS_TYPE_NONE);
+	if (ap != NULL) {
+		rp = v8plus_call(cp->amc_cb, ap);
+		nvlist_free(ap);
+		nvlist_free(rp);
+	}
 
-	(void) nvlist_alloc(&ap, NV_UNIQUE_NAME, 0);
-	rp = v8plus_call(cp->amc_cb, ap);
-
-	nvlist_free(ap);
-	nvlist_free(rp);
 	v8plus_jsfunc_rele(cp->amc_cb);
 	free(cp);
 }
@@ -236,22 +222,20 @@ example_multiplyAsync(void *op, const nvlist_t *ap)
 	v8plus_jsfunc_t cb;
 	async_multiply_ctx_t *cp;
 
-	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) != 0) {
-		return (v8plus_error(V8PLUSERR_MISSINGARG,
-		    "argument 0 is required"));
-	}
-
-	if (nvlist_lookup_v8plus_jsfunc((nvlist_t *)ap, "1", &cb) != 0) {
-		return (v8plus_error(V8PLUSERR_MISSINGARG,
-		    "argument 1 is required"));
-	}
+	if (v8plus_args(ap, V8PLUS_ARG_F_NOEXTRA,
+	    V8PLUS_TYPE_ANY, &pp,
+	    V8PLUS_TYPE_JSFUNC, &cb,
+	    V8PLUS_TYPE_NONE) != 0)
+		return (NULL);
 
 	if ((cp = malloc(sizeof (async_multiply_ctx_t))) == NULL)
 		return (v8plus_error(V8PLUSERR_NOMEM, "no memory for context"));
 
 	(void) example_set_impl(&cp->amc_operand, pp);
-	if (_v8plus_errno != V8PLUSERR_NOERROR)
+	if (_v8plus_errno != V8PLUSERR_NOERROR) {
+		free(cp);
 		return (NULL);
+	}
 
 	v8plus_jsfunc_hold(cb);
 	cp->amc_cb = cb;
@@ -266,104 +250,44 @@ example_toString(void *op, const nvlist_t *ap)
 {
 	example_t *ep = op;
 	nvpair_t *pp;
-	nvlist_t *rp;
-	int err;
-	char vbuf[32];
-
-	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
-		return (v8plus_nverr(err, NULL));
 
 	/*
-	 * Example of decorated exceptions.  Not strictly needed.  And yeah,
-	 * this interface kind of sucks.
+	 * Example of decorated exceptions.  Not strictly needed.
 	 */
-	if (nvlist_lookup_nvpair((nvlist_t *)ap, "0", &pp) == 0) {
-		nvlist_t *xp;
-
-		if ((err = nvlist_alloc(&xp, NV_UNIQUE_NAME, 0)) != 0) {
-			nvlist_free(rp);
-			return (v8plus_nverr(err, NULL));
-		}
-
-		if ((err = nvlist_add_double(xp, "example_argument", 0)) != 0) {
-			nvlist_free(xp);
-			nvlist_free(rp);
-			return (v8plus_nverr(err, "example_argument"));
-		}
-
-		if ((err = nvlist_add_double(xp,
-		    "example_type", nvpair_type(pp))) != 0) {
-			nvlist_free(xp);
-			nvlist_free(rp);
-			return (v8plus_nverr(err, "example_type"));
-		}
-
-		if ((err = nvlist_add_nvlist(rp, "err", xp)) != 0) {
-			nvlist_free(xp);
-			nvlist_free(rp);
-			return (v8plus_nverr(err, "err"));
-		}
-
-		(void) v8plus_error(V8PLUSERR_EXTRAARG,
-		    "unsupported superfluous argument(s) found");
-		return (rp);
+	if (v8plus_args(ap, 0,
+	    V8PLUS_TYPE_ANY, &pp, V8PLUS_TYPE_NONE) == 0) {
+		(void) v8plus_error(V8PLUSERR_EXTRAARG, NULL);
+		return (v8plus_obj(
+		    V8PLUS_TYPE_INL_OBJECT, "err",
+			V8PLUS_TYPE_NUMBER, "example_argument", (double) 0,
+			V8PLUS_TYPE_NUMBER, "example_type",
+			    (double) v8plus_typeof(pp),
+			V8PLUS_TYPE_NONE,
+		    V8PLUS_TYPE_NONE));
 	}
 
-	(void) snprintf(vbuf, sizeof (vbuf), "%llu",
-	    (unsigned long long)ep->e_val);
-
-	if ((err = nvlist_add_string(rp, "res", vbuf)) != 0) {
-		nvlist_free(rp);
-		return (v8plus_nverr(err, "res"));
-	}
-
-	return (rp);
+	return (v8plus_obj(
+	    V8PLUS_TYPE_STRNUMBER64, "res", (uint64_t)ep->e_val,
+	    V8PLUS_TYPE_NONE));
 }
 
 static nvlist_t *
 example_static_object(const nvlist_t *ap __UNUSED)
 {
-	nvlist_t *rp, *lp;
-	int err;
-
-	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
-		return (v8plus_nverr(err, NULL));
-
-	lp = v8plus_obj(
-	    V8PLUS_TYPE_NUMBER, "fred", (double)555.5,
-	    V8PLUS_TYPE_STRING, "barney", "the sky is blue",
-	    V8PLUS_TYPE_INL_OBJECT, "betty",
-		V8PLUS_TYPE_STRING, "bert", "ernie",
-		V8PLUS_TYPE_BOOLEAN, "coffeescript_is_a_joke", B_TRUE,
+	return (v8plus_obj(
+	    V8PLUS_TYPE_INL_OBJECT, "res",
+		V8PLUS_TYPE_NUMBER, "fred", (double)555.5,
+		V8PLUS_TYPE_STRING, "barney", "the sky is blue",
+		V8PLUS_TYPE_INL_OBJECT, "betty",
+		    V8PLUS_TYPE_STRING, "bert", "ernie",
+		    V8PLUS_TYPE_BOOLEAN, "coffeescript_is_a_joke", B_TRUE,
+		    V8PLUS_TYPE_NONE,
+		V8PLUS_TYPE_NULL, "wilma",
+		V8PLUS_TYPE_UNDEFINED, "pebbles",
+		V8PLUS_TYPE_NUMBER, "bam-bam", (double)-32,
+		V8PLUS_TYPE_STRNUMBER64, "dino", 0x1234567812345678ULL,
 		V8PLUS_TYPE_NONE,
-	    V8PLUS_TYPE_NULL, "wilma",
-	    V8PLUS_TYPE_UNDEFINED, "pebbles",
-	    V8PLUS_TYPE_NUMBER, "bam-bam", (double)-32,
-	    V8PLUS_TYPE_STRNUMBER64, "dino", 0x1234567812345678ULL,
-	    V8PLUS_TYPE_NONE);
-
-	if (lp == NULL) {
-		nvlist_free(rp);
-		return (NULL);
-	}
-
-	if (v8plus_obj_setprops(lp,
-	    V8PLUS_TYPE_STRNUMBER64, "dino", 0x1234567812345678ULL,
-	    V8PLUS_TYPE_NONE) != 0) {
-		nvlist_free(rp);
-		nvlist_free(lp);
-		return (NULL);
-	}
-
-	err = nvlist_add_nvlist(rp, "res", lp);
-	nvlist_free(lp);
-
-	if (err != 0) {
-		nvlist_free(rp);
-		return (v8plus_nverr(err, "res"));
-	}
-
-	return (rp);
+	    V8PLUS_TYPE_NONE));
 }
 
 /*
