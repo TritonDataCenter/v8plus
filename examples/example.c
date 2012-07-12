@@ -332,7 +332,7 @@ example_static_object(const nvlist_t *ap __UNUSED)
 	lp = v8plus_obj(
 	    V8PLUS_TYPE_NUMBER, "fred", (double)555.5,
 	    V8PLUS_TYPE_STRING, "barney", "the sky is blue",
-	    V8PLUS_TYPE_OBJECT, "betty",
+	    V8PLUS_TYPE_INL_OBJECT, "betty",
 		V8PLUS_TYPE_STRING, "bert", "ernie",
 		V8PLUS_TYPE_BOOLEAN, "coffeescript_is_a_joke", B_TRUE,
 		V8PLUS_TYPE_NONE,

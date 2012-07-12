@@ -29,7 +29,8 @@ typedef enum v8plus_type {
 	V8PLUS_TYPE_UNDEFINED,		/* -- */
 	V8PLUS_TYPE_INVALID,		/* data_type_t */
 	V8PLUS_TYPE_ANY,		/* nvpair_t * */
-	V8PLUS_TYPE_STRNUMBER64		/* uint64_t */
+	V8PLUS_TYPE_STRNUMBER64,	/* uint64_t */
+	V8PLUS_TYPE_INL_OBJECT		/* ... */
 } v8plus_type_t;
 
 typedef uint64_t v8plus_jsfunc_t;

@@ -395,20 +395,9 @@ v8plus_obj_vsetprops(nvlist_t *lp, v8plus_type_t t, va_list *ap)
 		}
 		case V8PLUS_TYPE_OBJECT:
 		{
-			nvlist_t *slp;
-
-			nt = va_arg(*ap, v8plus_type_t);
-			err = nvlist_alloc(&slp, NV_UNIQUE_NAME, 0);
-			if (err != 0) {
-				(void) v8plus_nverr(err, name);
-				return (-1);
-			}
-			if (v8plus_obj_vsetprops(slp, nt, ap) != 0)
-				return (-1);
-
-			err = nvlist_add_nvlist(lp, name, slp);
-			nvlist_free(slp);
-			if (err != 0) {
+			const nvlist_t *op = va_arg(*ap, const nvlist_t *);
+			if ((err = nvlist_add_nvlist(lp, name,
+			    (nvlist_t *)op)) != 0) {
 				(void) v8plus_nverr(err, name);
 				return (-1);
 			}
@@ -441,6 +430,27 @@ v8plus_obj_vsetprops(nvlist_t *lp, v8plus_type_t t, va_list *ap)
 			char s[32];
 			(void) snprintf(s, sizeof (s), "%" PRIu64, v);
 			if ((err = nvlist_add_string(lp, name, s)) != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
+			}
+			break;
+		}
+		case V8PLUS_TYPE_INL_OBJECT:
+		{
+			nvlist_t *slp;
+
+			nt = va_arg(*ap, v8plus_type_t);
+			err = nvlist_alloc(&slp, NV_UNIQUE_NAME, 0);
+			if (err != 0) {
+				(void) v8plus_nverr(err, name);
+				return (-1);
+			}
+			if (v8plus_obj_vsetprops(slp, nt, ap) != 0)
+				return (-1);
+
+			err = nvlist_add_nvlist(lp, name, slp);
+			nvlist_free(slp);
+			if (err != 0) {
 				(void) v8plus_nverr(err, name);
 				return (-1);
 			}
