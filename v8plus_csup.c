@@ -273,7 +273,13 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 	va_start(ap, t);
 
 	for (i = 0, nt = t; nt != V8PLUS_TYPE_NONE; i++) {
-		(void) va_arg(ap, void *);
+		switch (nt) {
+		case V8PLUS_TYPE_UNDEFINED:
+		case V8PLUS_TYPE_NULL:
+			break;
+		default:
+			(void) va_arg(ap, void *);
+		}
 
 		(void) snprintf(buf, sizeof (buf), "%u", i);
 		if (nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) != 0) {
@@ -305,7 +311,14 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 	va_start(ap, t);
 
 	for (i = 0, nt = t; nt != V8PLUS_TYPE_NONE; i++) {
-		vp = va_arg(ap, void *);
+		switch (nt) {
+		case V8PLUS_TYPE_UNDEFINED:
+		case V8PLUS_TYPE_NULL:
+			vp = NULL;
+			break;
+		default:
+			vp = va_arg(ap, void *);
+		}
 
 		(void) snprintf(buf, sizeof (buf), "%u", i);
 		VERIFY(nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) == 0);
@@ -334,7 +347,6 @@ v8plus_obj_vsetprops(nvlist_t *lp, v8plus_type_t t, va_list *ap)
 
 	while (nt != V8PLUS_TYPE_NONE) {
 		name = va_arg(*ap, char *);
-		(void) printf("name: %s type: %d\n", name, nt);
 
 		switch (nt) {
 		case V8PLUS_TYPE_STRING:
