@@ -61,7 +61,8 @@ OBJS +=		\
 		v8plus_subr.o
 
 GENERRNO_JS =	$(V8PLUS)/generrno.js
-GENERRNO =	NODE_PATH=../node_modules $(PREFIX_NODE)/bin/node $(GENERRNO_JS)
+GENERRNO =	NODE_PATH=$(V8PLUS)/node_modules \
+		    $(PREFIX_NODE)/bin/node $(GENERRNO_JS)
 
 ERRNO_H =	v8plus_errno.h
 ERRNO_C =	v8plus_errno.c

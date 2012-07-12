@@ -259,9 +259,9 @@ example_toString(void *op, const nvlist_t *ap)
 		(void) v8plus_error(V8PLUSERR_EXTRAARG, NULL);
 		return (v8plus_obj(
 		    V8PLUS_TYPE_INL_OBJECT, "err",
-			V8PLUS_TYPE_NUMBER, "example_argument", (double) 0,
+			V8PLUS_TYPE_NUMBER, "example_argument", (double)0,
 			V8PLUS_TYPE_NUMBER, "example_type",
-			    (double) v8plus_typeof(pp),
+			    (double)v8plus_typeof(pp),
 			V8PLUS_TYPE_NONE,
 		    V8PLUS_TYPE_NONE));
 	}
