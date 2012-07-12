@@ -7,16 +7,30 @@ WHICH_NODE =	dirname `bash -c 'hash node; hash -t node'`
 
 CC =		gcc
 CXX =		g++
+CTFCONVERT =	/opt/onbld/bin/i386/ctfconvert
+CTFMERGE =	/opt/onbld/bin/i386/ctfmerge
 PREFIX_NODE =	$(WHICH_NODE:sh)/..
 MODULE_DIR =	../lib
+
+CTF_LABEL =	v8plus_0.0.1
 
 DEBUG_FLAGS =	-g
 WARN_FLAGS =	-Wall -Wextra -Werror
 PIC_FLAGS =	-fPIC
 OPT_FLAGS =	-O2
+C_STDFLAGS =	-std=c99
+CXX_STDFLAGS =	-std=c++0x
 
-CFLAGS =	$(DEBUG_FLAGS) $(WARN_FLAGS) $(PIC_FLAGS) $(OPT_FLAGS)
-CXXFLAGS =	$(CFLAGS) -std=c++0x
+CFLAGS =	$(DEBUG_FLAGS) \
+		$(WARN_FLAGS) \
+		$(PIC_FLAGS) \
+		$(OPT_FLAGS) \
+		$(C_STDFLAGS)
+CXXFLAGS =	$(DEBUG_FLAGS) \
+		$(WARN_FLAGS) \
+		$(PIC_FLAGS) \
+		$(OPT_FLAGS) \
+		$(CXX_STDFLAGS)
 
 STD_DEFS =	-D_GNU_SOURCE
 NODE_DEFS =	-DBUILDING_NODE_EXTENSION
@@ -53,3 +67,6 @@ ERRNO_H =	v8plus_errno.h
 ERRNO_C =	v8plus_errno.c
 
 MAPFILE =	mapfile_node
+
+CTFCONVERT.o =	$(CTFCONVERT) -l $(CTF_LABEL) $@
+CTFMERGE.node =	$(CTFMERGE) -l $(CTF_LABEL) -o $@ $(OBJS)

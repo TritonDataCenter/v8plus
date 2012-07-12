@@ -14,15 +14,18 @@ $(OBJS): $(ERRNO_H)
 
 $(MODULE_DIR)/$(MODULE).node: $(OBJS) $(MAPFILE)
 	$(CXX) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+	$(CTFMERGE.node)
 
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+	$(CTFCONVERT) -l $(CTF_LABEL) $@
 
 %.o: %.cc
 	$(CXX) $(CXXPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 %.o: $(V8PLUS)/%.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
+	$(CTFCONVERT.o)
 
 %.o: $(V8PLUS)/%.cc
 	$(CXX) $(CXXPPFLAGS) $(CXXFLAGS) -c -o $@ $<

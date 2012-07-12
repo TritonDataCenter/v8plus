@@ -395,9 +395,9 @@ v8plus_obj_vsetprops(nvlist_t *lp, v8plus_type_t t, va_list *ap)
 		}
 		case V8PLUS_TYPE_OBJECT:
 		{
-			nt = va_arg(*ap, v8plus_type_t);
 			nvlist_t *slp;
 
+			nt = va_arg(*ap, v8plus_type_t);
 			err = nvlist_alloc(&slp, NV_UNIQUE_NAME, 0);
 			if (err != 0) {
 				(void) v8plus_nverr(err, name);
