@@ -2,17 +2,18 @@
 # Copyright (c) 2012 Joyent, Inc.  All rights reserved.
 #
 
-# XXX This is vile; is there a better way?
-WHICH_NODE =	dirname `bash -c 'hash node; hash -t node'`
-
+#
+# V8PLUS must be defined in consumer's makefiles.  See documentation.
+#
+#V8PLUS :=	$(shell $(PREFIX_NODE)/bin/node -e 'require("v8plus");')
+PREFIX_NODE :=	$(shell dirname `bash -c 'hash node; hash -t node'`)
 CC =		gcc
 CXX =		g++
 CTFCONVERT =	/opt/onbld/bin/i386/ctfconvert
 CTFMERGE =	/opt/onbld/bin/i386/ctfmerge
-PREFIX_NODE =	$(shell $(WHICH_NODE))/..
-MODULE_DIR =	../lib
-
 CTF_LABEL =	v8plus_0.0.1
+
+MODULE_DIR =	../lib
 
 DEBUG_FLAGS =	-g
 WARN_FLAGS =	-Wall -Wextra -Werror
