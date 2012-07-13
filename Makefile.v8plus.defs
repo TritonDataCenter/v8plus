@@ -3,10 +3,12 @@
 #
 
 #
-# V8PLUS must be defined in consumer's makefiles.  See documentation.
+# V8PLUS and PREFIX_NODE must be defined in consumer's makefiles.
+# See documentation.
 #
+#PREFIX_NODE :=	$(shell dirname `bash -c 'hash node; hash -t node'`)/..
 #V8PLUS :=	$(shell $(PREFIX_NODE)/bin/node -e 'require("v8plus");')
-PREFIX_NODE :=	$(shell dirname `bash -c 'hash node; hash -t node'`)
+
 CC =		gcc
 CXX =		g++
 CTFCONVERT =	/opt/onbld/bin/i386/ctfconvert

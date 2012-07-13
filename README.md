@@ -20,7 +20,7 @@ still exists, but you don't have to write it.  More importantly, you can
 write your module in a sane programming environment, avoiding the confusing
 and error-prone C++ semantics.
 
-Your module is an object factory.  It returns native objects.  When the
+Your module is an object factory that returns native objects.  When the
 JavaScript function named by v8plus_js_factory_name is called, the C
 function pointed to by v8plus_ctor will be invoked.  Its first argument is
 a pointer to the JavaScript argument list (see Argument Handling below)
