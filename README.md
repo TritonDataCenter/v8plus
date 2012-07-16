@@ -64,12 +64,12 @@ to use v8+ with npm:
 2. An appropriate script entry for building your module.  It is strongly
    recommended that you use something like the following:
 
-	"postinstall": "gmake $(eval echo ${MAKE_OVERRIDES})"
+        "postinstall": "gmake $(eval echo ${MAKE_OVERRIDES})"
 
 This will allow someone building your module to set make variables by adding
 them to the `MAKE_OVERRIDES` environment variable; e.g.,
 
-	$ MAKE_OVERRIDES="CTFCONVERT=/bin/true CTFMERGE=/bin/true" npm install
+        $ MAKE_OVERRIDES="CTFCONVERT=/bin/true CTFMERGE=/bin/true" npm install
 
 ### Tying into the Makefiles
 
@@ -83,8 +83,8 @@ things:
    which will cause the addon to be built against the `node` that is found
    first in your path:
 
-	PREFIX_NODE := $(shell dirname `bash -c 'hash node; hash -t node'`)/..
-	V8PLUS :=      $(shell $(PREFIX_NODE)/bin/node -e 'require("v8plus");')
+        PREFIX_NODE := $(shell dirname `bash -c 'hash node; hash -t node'`)/..
+        V8PLUS :=      $(shell $(PREFIX_NODE)/bin/node -e 'require("v8plus");')
 
    Note that the mechanism for finding `node` will not work correctly if
    yours is a symlink.  This invocation of node(1) uses a v8+ mechanism to
@@ -93,7 +93,7 @@ things:
 
 2. The exact line:
 
-	include $(V8PLUS)/Makefile.v8plus.defs
+        include $(V8PLUS)/Makefile.v8plus.defs
 
 3. Variable assignments specific to your module.  In particular, you must
    define `SRCS`, `MODULE`, and `ERRNO_JSON`.  Additional customisation is
@@ -101,7 +101,7 @@ things:
 
 4. The exact line:
 
-	include $(V8PLUS)/Makefile.v8plus.targ
+        include $(V8PLUS)/Makefile.v8plus.targ
 
 Additional arbitrary customisation is possible using standard makefile
 syntax; most things that are useful to change already have variables defined
@@ -157,23 +157,6 @@ This functionality is generally sufficient to interface with the system in
 useful ways, but it is by no means exhaustive.  Architectural limitations
 are noted throughout the documentation.
 
-Your module is an object factory that returns native objects.  When the
-JavaScript function named by v8plus_js_factory_name is called, the C
-function pointed to by v8plus_ctor will be invoked.  Its first argument is a
-pointer to the JavaScript argument list (see Argument Handling below) and
-its second argument points to space for storing a pointer to your C object
-representation.  Allocate one and stuff it in there.  If something goes
-wrong, set the object pointer to NULL and see Exceptions below.  Otherwise,
-return v8plus_void().  The JavaScript object thus created will have a set of
-methods, each of which corresponds to a C function you define.  In addition,
-the native module may also provide additional functions independent of the
-objects it creates as a factory.  See Methods below for details.
-
-If your constructor (or any method's implementation) allocates memory, free
-it in your destructor, which will be passed the pointer set by your
-constructor when the object is garbage collected.  Set v8plus_dtor to an
-appropriate destructor, which may be an empty function.
-
 Subsequent sections describe the API in greater detail, along with most of
 the C functions that v8+ provides.  Some utility functions may not be listed
 here; see `v8plus_glue.h` for additional commentary and functions that are
@@ -223,10 +206,11 @@ returning `v8plus_error()` or one of its wrappers, or by setting
 `_v8plus_errno` using one of those functions and then returning an nvlist
 with an `err` member representing a decorated exception.
 
-### void v8plus_c_dtor(void *cop)
+### void v8plus_c_dtor_f(void *op)
 
-Free the C object `cop` and anything else associated with it.  Your object
-is going away.
+Free the C object `op` and anything else associated with it.  Your object is
+going away.  This function may be empty if the constructor did not allocate
+any memory (i.e., `op` is not a pointer to dynamically allocated memory).
 
 ### nvlist_t *v8plus_c_method_f(void *op, const nvlist_t *ap)
 
@@ -828,7 +812,7 @@ See "License" below.  Note also that one can export plain functions as well.
 
 - Why do I always die with "invalid property type -3621" (or other garbage)?
 
-Your are passing an object with the wrong C type to `v8plus_obj()`.  Like
+You are passing an object with the wrong C type to `v8plus_obj()`.  Like
 all varargs functions, it cannot tell the correct size or type of the
 objects you have passed it; they must match the preceding type argument or
 it will not work correctly.  In this particular case, you've most likely
