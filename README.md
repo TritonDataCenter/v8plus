@@ -220,7 +220,7 @@ the JavaScript object, and `ap` is the encoded list of arguments to the
 function.  Return an encoded object with a `res` member, or use one of the
 error/exception patterns.
 
-### nvlist_t *v8plus_c_static_method_f(nvlist_t *ap)
+### nvlist_t *v8plus_c_static_method_f(const nvlist_t *ap)
 
 In addition to methods on the native objects returned by your constructor,
 you can also provide a set of functions on the native binding object itself.
@@ -563,7 +563,7 @@ following form:
 		 * v8plus_jsfunc_hold()
 		 * v8plus_jsfunc_rele()
 		 * v8plus_call()
-		 * v8plus_method_call()
+		 * v8plus_method_call_direct()
 		 * v8plus_defer()
 		 *
 		 * If you touch anything inside op, you may need locking to
@@ -624,7 +624,7 @@ worker threads in the pool for as long as `async_worker` is running.
 
 The other asynchronous mechanism is the Node.js `EventEmitter` model.  This
 model requires some assistance from JavaScript code, because v8+ native
-objects no not inherit from `EventEmitter`.  To make this work, you will
+objects do not inherit from `EventEmitter`.  To make this work, you will
 need to create a JavaScript object (the object your consumers actually use)
 that inherits from `EventEmitter`, hang your native object off this object,
 and populate the native object with an appropriate method that will cause
@@ -651,12 +651,11 @@ method.  A simple example might look like this:
 	util.inherits(MyObjectWrapper, events.EventEmitter);
 
 Then, in C code, you must arrange for libuv to call a C function in the
-context of the main event loop.  How to do this depends on what type of
-asynchronous event you are waiting for; for example, the `uv_poll` mechanism
-will call you back in the appropriate context when a file descriptor becomes
-readable or writable.  Because libuv is a C library, you can easily use
-these interfaces directly in your v8+ addon.  Your libuv callback might then
-contain code looking something like this:
+context of the main event loop.  The function `v8plus_method_call()` is safe
+to call from any thread: depending on the context in which it is invoked, it
+will either make the call directly or queue the call in the main event loop
+and block on a reply.  Simply arrange to call back into your JavaScript
+object when you wish to post an event:
 
 	nvlist_t *eap;
 	nvlist_t *erp;
@@ -727,6 +726,13 @@ argument list `ap`.  The method must exist and must be a JavaScript
 function.  Such functions may be attached by JavaScript code as in the event
 emitter example above.  The effects of using this function to call a native
 method are undefined.
+
+As JavaScript functions must be called from the event loop thread,
+`v8plus_method_call()` contains logic to determine whether we are in the
+correct context or not.  If we are running on some other thread we will
+queue the request and sleep, waiting for the event loop thread to make the
+call.  In the simple case, where we are already in the correct thread, we
+make the call directly.
 
 ## FAQ
 

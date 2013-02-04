@@ -453,7 +453,7 @@ v8plus_call(v8plus_jsfunc_t f, const nvlist_t *lp)
 }
 
 extern "C" nvlist_t *
-v8plus_method_call(void *cop, const char *name, const nvlist_t *lp)
+v8plus_method_call_direct(void *cop, const char *name, const nvlist_t *lp)
 {
 	v8plus::ObjectWrap *op = v8plus::ObjectWrap::objlookup(cop);
 	const int max_argc = nvlist_length(lp);
@@ -461,6 +461,9 @@ v8plus_method_call(void *cop, const char *name, const nvlist_t *lp)
 	v8::Handle<v8::Value> argv[max_argc];
 	v8::Handle<v8::Value> res;
 	nvlist_t *rp;
+
+	if (v8plus_in_event_thread() != _B_TRUE)
+		v8plus_panic("direct method call outside of event loop");
 
 	argc = max_argc;
 	nvlist_to_v8_argv(lp, &argc, argv);

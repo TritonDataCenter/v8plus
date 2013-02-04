@@ -100,6 +100,8 @@ v8plus::ObjectWrap::init(v8::Handle<v8::Object> target)
 		    v8::FunctionTemplate::New(
 		    v8plus::ObjectWrap::cons)->GetFunction());
 	}
+
+	v8plus_crossthread_init();
 }
 
 v8::Handle<v8::Value>

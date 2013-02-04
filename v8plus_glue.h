@@ -13,6 +13,8 @@
 extern "C" {
 #endif	/* __cplusplus */
 
+#define	__UNUSED	__attribute__((__unused__))
+
 #define	V8PLUS_ARG_F_NOEXTRA	0x01
 
 #define	V8PLUS_ERRMSG_LEN	512
@@ -163,10 +165,20 @@ extern nvlist_t *v8plus_call(v8plus_jsfunc_t, const nvlist_t *);
  * results of calling a method implemented in C via this interface are
  * undefined.
  *
- * This can be used in concert with JS code to emit events asynchronously;
- * see the documentation.
+ * These methods can be used in concert with JS code to emit events
+ * asynchronously; see the documentation.
+ *
+ * Note: As JavaScript functions must be called from the event loop thread,
+ * v8plus_method_call() contains logic to determine whether we are in the
+ * correct context or not.  If we are running on some other thread we will
+ * queue the request and sleep, waiting for the event loop thread to make the
+ * call.  In the simple case, where we are already in the correct thread,
+ * we make the call directly.  v8plus_method_call_direct() assumes we are
+ * on the correct thread and always makes the call directly.
  */
 extern nvlist_t *v8plus_method_call(void *, const char *, const nvlist_t *);
+extern nvlist_t *v8plus_method_call_direct(void *, const char *,
+    const nvlist_t *);
 
 /*
  * These methods are analogous to strerror(3c) and similar functions; they
@@ -191,6 +203,12 @@ extern const v8plus_method_descr_t v8plus_methods[];
 extern const uint_t v8plus_method_count;
 extern const v8plus_static_descr_t v8plus_static_methods[];
 extern const uint_t v8plus_static_method_count;
+
+/*
+ * Private methods.
+ */
+extern boolean_t v8plus_in_event_thread(void);
+extern void v8plus_crossthread_init(void);
 
 #ifdef	__cplusplus
 }

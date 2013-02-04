@@ -12,8 +12,6 @@
 extern "C" {
 #endif	/* __cplusplus */
 
-#define	__UNUSED	__attribute__((__unused__))
-
 typedef struct example {
 	uint64_t e_val;
 } example_t;
