@@ -416,7 +416,7 @@ v8plus::exception(const char *type, const nvlist_t *lp, const char *fmt, ...)
 }
 
 extern "C" nvlist_t *
-v8plus_call(v8plus_jsfunc_t f, const nvlist_t *lp)
+v8plus_call_direct(v8plus_jsfunc_t f, const nvlist_t *lp)
 {
 	std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
 	const int max_argc = nvlist_length(lp);
@@ -526,7 +526,7 @@ v8plus_jsfunc_hold(v8plus_jsfunc_t f)
 }
 
 extern "C" void
-v8plus_jsfunc_rele(v8plus_jsfunc_t f)
+v8plus_jsfunc_rele_direct(v8plus_jsfunc_t f)
 {
 	v8::Local<v8::Function> lfh;
 	std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
@@ -640,7 +640,7 @@ v8plus_obj_hold(const void *cop)
 }
 
 extern "C" void
-v8plus_obj_rele(const void *cop)
+v8plus_obj_rele_direct(const void *cop)
 {
 	v8plus::ObjectWrap *op = v8plus::ObjectWrap::objlookup(cop);
 	op->public_Unref();

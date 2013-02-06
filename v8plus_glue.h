@@ -112,6 +112,7 @@ extern int nvlist_lookup_v8plus_jsfunc(const nvlist_t *, const char *,
 extern int nvpair_value_v8plus_jsfunc(const nvpair_t *, v8plus_jsfunc_t *);
 extern void v8plus_jsfunc_hold(v8plus_jsfunc_t);
 extern void v8plus_jsfunc_rele(v8plus_jsfunc_t);
+extern void v8plus_jsfunc_rele_direct(v8plus_jsfunc_t);
 
 /*
  * Place or release a hold on the V8 representation of the specified C object.
@@ -124,6 +125,7 @@ extern void v8plus_jsfunc_rele(v8plus_jsfunc_t);
  */
 extern void v8plus_obj_hold(const void *);
 extern void v8plus_obj_rele(const void *);
+extern void v8plus_obj_rele_direct(const void *);
 
 /*
  * Convenience functions for dealing with JS arguments.
@@ -154,6 +156,7 @@ extern void v8plus_defer(void *, void *, v8plus_worker_f, v8plus_completion_f);
  * possible for the JS code to modify the function represented by the cookie.
  */
 extern nvlist_t *v8plus_call(v8plus_jsfunc_t, const nvlist_t *);
+extern nvlist_t *v8plus_call_direct(v8plus_jsfunc_t, const nvlist_t *);
 
 /*
  * Call the named JavaScript function in the context of the JS object

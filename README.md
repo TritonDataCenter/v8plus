@@ -559,10 +559,10 @@ following form:
 		 * In thread pool context -- do not call any of the
 		 * following functions:
 		 * v8plus_obj_hold()
-		 * v8plus_obj_rele()
+		 * v8plus_obj_rele_direct()
 		 * v8plus_jsfunc_hold()
-		 * v8plus_jsfunc_rele()
-		 * v8plus_call()
+		 * v8plus_jsfunc_rele_direct()
+		 * v8plus_call_direct()
 		 * v8plus_method_call_direct()
 		 * v8plus_defer()
 		 *
@@ -688,7 +688,9 @@ be balanced.  Use of the object within a thread after releasing is a bug.
 
 ### void v8plus_obj_rele(const void *op)
 
-Releases a hold placed by `v8plus_obj_hold()`.
+Releases a hold placed by `v8plus_obj_hold()`.  This function may be called
+safely from any thread; releases from threads other than the main event loop
+are non-blocking and will occur some time in the future.
 
 ### void v8plus_jsfunc_hold(v8plus_jsfunc_t f)
 
@@ -702,7 +704,9 @@ function without first placing an additional hold on it.
 
 ### void v8plus_jsfunc_rele(v8plus_jsfunc_t f)
 
-Releases a hold placed by `v8plus_jsfunc_hold()`.
+Releases a hold placed by `v8plus_jsfunc_hold()`.  This function may be called
+safely from any thread; releases from threads other than the main event loop
+thread are non-blocking and will occur some time in the future.
 
 ### void v8plus_defer(void *op, void *ctx, worker, completion)
 
@@ -719,6 +723,18 @@ Calls the JavaScript function referred to by `f` with encoded arguments
 argument and return value encoding match the encodings that are used by C
 functions that provide methods.
 
+As JavaScript functions must be called from the event loop thread,
+`v8plus_call()` contains logic to determine whether we are in the
+correct context or not.  If we are running on some other thread we will
+queue the request and sleep, waiting for the event loop thread to make the
+call.  In the simple case, where we are already in the correct thread, we
+make the call directly.
+
+Note that when passing JavaScript functions around as callbacks, you must use
+first use `v8plus_jsfunc_hold()` from within the main event loop thread.  Once
+finished with the function, you may pass it to `v8plus_jsfunc_rele()` from any
+thread to clean up.
+
 ### nvlist_t *v8plus_method_call(void *op, const char *name, const nvlist_t *ap)
 
 Calls the method named by `name` in the native object `op` with encoded
@@ -727,12 +743,9 @@ function.  Such functions may be attached by JavaScript code as in the event
 emitter example above.  The effects of using this function to call a native
 method are undefined.
 
-As JavaScript functions must be called from the event loop thread,
-`v8plus_method_call()` contains logic to determine whether we are in the
-correct context or not.  If we are running on some other thread we will
-queue the request and sleep, waiting for the event loop thread to make the
-call.  In the simple case, where we are already in the correct thread, we
-make the call directly.
+When called from threads other than the main event loop thread,
+`v8plus_method_call()` uses the same queue-and-block logic as described above
+in `v8plus_call()`.
 
 ## FAQ
 

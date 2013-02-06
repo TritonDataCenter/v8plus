@@ -31,16 +31,41 @@ static pthread_mutex_t _v8plus_callq_mtx;
 static pthread_t _v8plus_uv_event_thread;
 static uv_async_t _v8plus_uv_async;
 
+typedef enum v8plus_async_call_type {
+	ACT_OBJECT_CALL = 1,
+	ACT_OBJECT_RELEASE,
+	ACT_JSFUNC_CALL,
+	ACT_JSFUNC_RELEASE,
+} v8plus_async_call_type_t;
+
+typedef enum v8plus_async_call_flags {
+	ACF_COMPLETED	= 0x01,
+	ACF_NOREPLY	= 0x02
+} v8plus_async_call_flags_t;
+
+
 typedef struct v8plus_async_call {
+	v8plus_async_call_type_t vac_type;
+	v8plus_async_call_flags_t vac_flags;
+
+	/*
+	 * For ACT_OBJECT_{CALL,RELEASE}:
+	 */
 	void *vac_cop;
 	const char *vac_name;
+	/*
+	 * For ACT_JSFUNC_{CALL,RELEASE}:
+	 */
+	v8plus_jsfunc_t vac_func;
+
+	/*
+	 * Common call arguments:
+	 */
 	const nvlist_t *vac_lp;
+	nvlist_t *vac_return;
 
 	pthread_cond_t vac_cv;
 	pthread_mutex_t vac_mtx;
-
-	boolean_t vac_run;
-	nvlist_t *vac_return;
 
 	STAILQ_ENTRY(v8plus_async_call) vac_callq_entry;
 } v8plus_async_call_t;
@@ -52,7 +77,7 @@ v8plus_in_event_thread(void)
 }
 
 static void
-v8plus_async_callback(uv_async_t *async, int status __UNUSED)
+v8plus_async_callback(uv_async_t *async __UNUSED, int status __UNUSED)
 {
 	if (v8plus_in_event_thread() != B_TRUE)
 		v8plus_panic("async callback called outside of event loop");
@@ -78,19 +103,106 @@ v8plus_async_callback(uv_async_t *async, int status __UNUSED)
 		/*
 		 * Run the queued method:
 		 */
-		if (vac->vac_run == B_TRUE)
+		if (vac->vac_flags & ACF_COMPLETED)
 			v8plus_panic("async call already run");
-		vac->vac_return = v8plus_method_call_direct(vac->vac_cop,
-		    vac->vac_name, vac->vac_lp);
+
+		switch (vac->vac_type) {
+		case ACT_OBJECT_CALL:
+			vac->vac_return = v8plus_method_call_direct(
+			    vac->vac_cop, vac->vac_name, vac->vac_lp);
+			break;
+		case ACT_OBJECT_RELEASE:
+			v8plus_obj_rele_direct(vac->vac_cop);
+			break;
+		case ACT_JSFUNC_CALL:
+			vac->vac_return = v8plus_call_direct(
+			    vac->vac_func, vac->vac_lp);
+			break;
+		case ACT_JSFUNC_RELEASE:
+			v8plus_jsfunc_rele_direct(vac->vac_func);
+			break;
+		}
+
+		if (vac->vac_flags & ACF_NOREPLY) {
+			/*
+			 * The caller posted this event and is not sleeping
+			 * on a reply.  Just free the call structure and move
+			 * on.
+			 */
+			free(vac);
+			if (vac->vac_lp != NULL)
+				nvlist_free((nvlist_t *)vac->vac_lp);
+			continue;
+		}
 
 		if (pthread_mutex_lock(&vac->vac_mtx) != 0)
 			v8plus_panic("could not lock async call mutex");
-		vac->vac_run = B_TRUE;
+		vac->vac_flags |= ACF_COMPLETED;
 		if (pthread_cond_broadcast(&vac->vac_cv) != 0)
 			v8plus_panic("could not signal async call condvar");
 		if (pthread_mutex_unlock(&vac->vac_mtx) != 0)
 			v8plus_panic("could not unlock async call mutex");
 	}
+}
+
+/*
+ * As we cannot manipulate v8plus/V8/Node structures directly from outside the
+ * event loop thread, we push the call arguments onto a queue and post to the
+ * event loop thread.  We then sleep on our condition variable until the event
+ * loop thread makes the call for us and wakes us up.
+ *
+ * This routine implements the parts of this interaction common to all
+ * variants.
+ */
+static nvlist_t *
+v8plus_cross_thread_call(v8plus_async_call_t *vac)
+{
+	/*
+	 * Common call structure initialisation:
+	 */
+	if (pthread_mutex_init(&vac->vac_mtx, NULL) != 0)
+		v8plus_panic("could not init async call mutex");
+	if (pthread_cond_init(&vac->vac_cv, NULL) != 0)
+		v8plus_panic("could not init async call condvar");
+	vac->vac_flags &= ~(ACF_COMPLETED);
+
+	/*
+	 * Post request to queue:
+	 */
+	if (pthread_mutex_lock(&_v8plus_callq_mtx) != 0)
+		v8plus_panic("could not lock async queue mutex");
+	STAILQ_INSERT_TAIL(&_v8plus_callq, vac, vac_callq_entry);
+	if (pthread_mutex_unlock(&_v8plus_callq_mtx) != 0)
+		v8plus_panic("could not unlock async queue mutex");
+	uv_async_send(&_v8plus_uv_async);
+
+	if (vac->vac_flags & ACF_NOREPLY) {
+		/*
+		 * The caller does not care about the reply, and has allocated
+		 * the v8plus_async_call_t structure from the heap.  The
+		 * async callback will free the storage when it completes.
+		 */
+		return (NULL);
+	}
+
+	/*
+	 * Wait for our request to be serviced on the event loop thread:
+	 */
+	if (pthread_mutex_lock(&vac->vac_mtx) != 0)
+		v8plus_panic("could not lock async call mutex");
+	while (!(vac->vac_flags & ACF_COMPLETED)) {
+		if (pthread_cond_wait(&vac->vac_cv, &vac->vac_mtx) != 0)
+			v8plus_panic("could not wait on async call condvar");
+	}
+	if (pthread_mutex_unlock(&vac->vac_mtx) != 0)
+		v8plus_panic("could not unlock async call mutex");
+
+	if (pthread_cond_destroy(&vac->vac_cv) != 0)
+		v8plus_panic("could not destroy async call condvar");
+	if (pthread_mutex_destroy(&vac->vac_mtx) != 0)
+		v8plus_panic("could not destroy async call mutex");
+
+	return (vac->vac_return);
 }
 
 nvlist_t *
@@ -106,53 +218,75 @@ v8plus_method_call(void *cop, const char *name, const nvlist_t *lp)
 		return (v8plus_method_call_direct(cop, name, lp));
 	}
 
-	/*
-	 * As we cannot manipulate v8plus/V8/Node structures directly from
-	 * outside the event loop thread, we push the call arguments onto a
-	 * queue and post to the event loop thread.  We then sleep on our
-	 * condition variable until the event loop thread makes the call
-	 * for us and wakes us up.
-	 */
 	bzero(&vac, sizeof (vac));
+	vac.vac_type = ACT_OBJECT_CALL;
 	vac.vac_cop = cop;
 	vac.vac_name = name;
 	vac.vac_lp = lp;
-	if (pthread_mutex_init(&vac.vac_mtx, NULL) != 0)
-		v8plus_panic("could not init async call mutex");
-	if (pthread_cond_init(&vac.vac_cv, NULL) != 0)
-		v8plus_panic("could not init async call condvar");
-	vac.vac_run = B_FALSE;
 
-	/*
-	 * Post request to queue:
-	 */
-	if (pthread_mutex_lock(&_v8plus_callq_mtx) != 0)
-		v8plus_panic("could not lock async queue mutex");
-	STAILQ_INSERT_TAIL(&_v8plus_callq, &vac, vac_callq_entry);
-	if (pthread_mutex_unlock(&_v8plus_callq_mtx) != 0)
-		v8plus_panic("could not unlock async queue mutex");
-	uv_async_send(&_v8plus_uv_async);
-
-	/*
-	 * Wait for our request to be serviced on the event loop thread:
-	 */
-	if (pthread_mutex_lock(&vac.vac_mtx) != 0)
-		v8plus_panic("could not lock async call mutex");
-	while (vac.vac_run == B_FALSE) {
-		if (pthread_cond_wait(&vac.vac_cv, &vac.vac_mtx) != 0)
-			v8plus_panic("could not wait on async call condvar");
-	}
-	if (pthread_mutex_unlock(&vac.vac_mtx) != 0)
-		v8plus_panic("could not unlock async call mutex");
-
-	if (pthread_cond_destroy(&vac.vac_cv) != 0)
-		v8plus_panic("could not destroy async call condvar");
-	if (pthread_mutex_destroy(&vac.vac_mtx) != 0)
-		v8plus_panic("could not destroy async call mutex");
-
-	return (vac.vac_return);
+	return (v8plus_cross_thread_call(&vac));
 }
 
+nvlist_t *
+v8plus_call(v8plus_jsfunc_t func, const nvlist_t *lp)
+{
+	v8plus_async_call_t vac;
+
+	if (v8plus_in_event_thread() == B_TRUE) {
+		/*
+		 * We're running in the event loop thread, so we can make the
+		 * call directly.
+		 */
+		return (v8plus_call_direct(func, lp));
+	}
+
+	bzero(&vac, sizeof (vac));
+	vac.vac_type = ACT_JSFUNC_CALL;
+	vac.vac_func = func;
+	vac.vac_lp = lp;
+
+	return (v8plus_cross_thread_call(&vac));
+}
+
+void
+v8plus_obj_rele(const void *cop)
+{
+	v8plus_async_call_t *vac;
+
+	if (v8plus_in_event_thread() == B_TRUE) {
+		return (v8plus_obj_rele_direct(cop));
+	}
+
+	vac = calloc(1, sizeof (*vac));
+	if (vac == NULL)
+		v8plus_panic("could not allocate async call structure");
+
+	vac->vac_type = ACT_OBJECT_RELEASE;
+	vac->vac_flags = ACF_NOREPLY;
+	vac->vac_cop = (void *)cop;
+
+	(void) v8plus_cross_thread_call(vac);
+}
+
+void
+v8plus_jsfunc_rele(v8plus_jsfunc_t f)
+{
+	v8plus_async_call_t *vac;
+
+	if (v8plus_in_event_thread() == B_TRUE) {
+		return (v8plus_jsfunc_rele_direct(f));
+	}
+
+	vac = calloc(1, sizeof (*vac));
+	if (vac == NULL)
+		v8plus_panic("could not allocate async call structure");
+
+	vac->vac_type = ACT_JSFUNC_RELEASE;
+	vac->vac_flags = ACF_NOREPLY;
+	vac->vac_func = f;
+
+	(void) v8plus_cross_thread_call(vac);
+}
 
 /*
  * Initialise structures for off-event-loop method calls.

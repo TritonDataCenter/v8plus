@@ -29,9 +29,6 @@
 #define	NODE_MAKECALLBACK_RETURN
 #endif
 
-extern "C" boolean_t v8plus_in_event_thread(void);
-extern "C" void v8plus_crossthread_init(void);
-
 namespace v8plus {
 
 class ObjectWrap;
