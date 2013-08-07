@@ -861,11 +861,11 @@ MIT.
 
 ## Bugs
 
-See <https://github.com/wesolows/v8plus/issues>.
+See <https://github.com/joyent/v8plus/issues>.
 
 ## Consumers
 
 This is an incomplete list of native addons known to be using v8+.  If your
 addon uses v8+, please let me know and I will include it here.
 
-- <https://github.com/wesolows/node-contract>
+- <https://github.com/joyent/node-contract>
