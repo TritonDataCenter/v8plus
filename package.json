@@ -11,10 +11,11 @@
 		"url": "git://github.com/joyent/v8plus.git"
 	},
 	"bugs": {
-		"url" : "http://github.com/joyent/v8plus/issues"
+		"url": "http://github.com/joyent/v8plus/issues"
 	},
 	"dependencies": {
 		"posix-getopt": "~0.0.1"
 	},
-	"main": "origin.js"
+	"main": "origin.js",
+	"license": "MIT"
 }
