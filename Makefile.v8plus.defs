@@ -15,6 +15,8 @@ CTFCONVERT =	/opt/onbld/bin/i386/ctfconvert
 CTFMERGE =	/opt/onbld/bin/i386/ctfmerge
 CTF_LABEL =	v8plus_0.0.1
 
+NODE_EXEC =	$(PREFIX_NODE)/bin/node
+
 MODULE_DIR =	../lib
 
 DEBUG_FLAGS =	-g
@@ -65,7 +67,7 @@ OBJS +=		\
 
 GENERRNO_JS =	$(V8PLUS)/generrno.js
 GENERRNO =	NODE_PATH=$(V8PLUS)/node_modules \
-		    $(PREFIX_NODE)/bin/node $(GENERRNO_JS)
+		    $(NODE_EXEC) $(GENERRNO_JS)
 
 ERRNO_H =	v8plus_errno.h
 ERRNO_C =	v8plus_errno.c
