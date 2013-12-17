@@ -2,7 +2,7 @@
 	"author": "Keith M Wesolowski <keith.wesolowski@joyent.com>",
 	"name": "v8plus",
 	"description": "utility environment for writing addons in C",
-	"version": "0.1.3",
+	"version": "0.2.0",
 	"contributors": [
 		"Joshua M. Clulow <jmc@joyent.com>"
 	],
