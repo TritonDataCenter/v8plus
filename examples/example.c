@@ -290,6 +290,83 @@ example_static_object(const nvlist_t *ap __UNUSED)
 	    V8PLUS_TYPE_NONE));
 }
 
+typedef struct static_async_multiply_ctx {
+	example_t samc_operand0;
+	example_t samc_operand1;
+	uint64_t samc_result;
+	v8plus_jsfunc_t samc_cb;
+} static_async_multiply_ctx_t;
+
+static void *
+static_async_multiply_worker(void *op __UNUSED, void *ctx)
+{
+	static_async_multiply_ctx_t *cp = ctx;
+	example_t *ep = &cp->samc_operand0;
+	example_t *ap = &cp->samc_operand1;
+
+	cp->samc_result = ep->e_val * ap->e_val;
+
+	return (NULL);
+}
+
+static void
+static_async_multiply_done(void *op __UNUSED, void *ctx, void *res __UNUSED)
+{
+	static_async_multiply_ctx_t *cp = ctx;
+	nvlist_t *rp;
+	nvlist_t *ap;
+
+	ap = v8plus_obj(
+	    V8PLUS_TYPE_STRNUMBER64, "0", cp->samc_result,
+	    V8PLUS_TYPE_NONE);
+
+	if (ap != NULL) {
+		rp = v8plus_call(cp->samc_cb, ap);
+		nvlist_free(ap);
+		nvlist_free(rp);
+	}
+
+	v8plus_jsfunc_rele(cp->samc_cb);
+	free(cp);
+}
+
+static nvlist_t *
+example_static_multiplyAsync(const nvlist_t *ap)
+{
+	nvpair_t *pp0, *pp1;
+	v8plus_jsfunc_t cb;
+	static_async_multiply_ctx_t *cp;
+
+	if (v8plus_args(ap, V8PLUS_ARG_F_NOEXTRA,
+	    V8PLUS_TYPE_ANY, &pp0,
+	    V8PLUS_TYPE_ANY, &pp1,
+	    V8PLUS_TYPE_JSFUNC, &cb,
+	    V8PLUS_TYPE_NONE) != 0)
+		return (NULL);
+
+	if ((cp = malloc(sizeof (static_async_multiply_ctx_t))) == NULL)
+		return (v8plus_error(V8PLUSERR_NOMEM, "no memory for context"));
+
+	(void) example_set_impl(&cp->samc_operand0, pp0);
+	if (_v8plus_errno != V8PLUSERR_NOERROR) {
+		free(cp);
+		return (NULL);
+	}
+	(void) example_set_impl(&cp->samc_operand1, pp1);
+	if (_v8plus_errno != V8PLUSERR_NOERROR) {
+		free(cp);
+		return (NULL);
+	}
+
+	v8plus_jsfunc_hold(cb);
+	cp->samc_cb = cb;
+
+	v8plus_defer(NULL, cp, static_async_multiply_worker,
+	    static_async_multiply_done);
+
+	return (v8plus_void());
+}
+
 /*
  * v8+ boilerplate
  */
@@ -330,6 +407,10 @@ const v8plus_static_descr_t v8plus_static_methods[] = {
 	{
 		sd_name: "static_object",
 		sd_c_func: example_static_object
+	},
+	{
+		sd_name: "static_multiplyAsync",
+		sd_c_func: example_static_multiplyAsync
 	}
 };
 const uint_t v8plus_static_method_count =

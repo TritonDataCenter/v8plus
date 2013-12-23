@@ -52,6 +52,10 @@ e.multiplyAsync(100, function () {
 	console.log('background e = ' + e.toString());
 });
 
+example.static_multiplyAsync(2345, 6789, function (r) {
+	console.log('background multiply 2345 * 6789 = ' + r.toString());
+});
+
 function
 Wrapper(ex)
 {

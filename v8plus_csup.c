@@ -861,7 +861,8 @@ v8plus_uv_completion(uv_work_t *wp)
 	v8plus_uv_ctx_t *cp = wp->data;
 
 	cp->vuc_completion(cp->vuc_obj, cp->vuc_ctx, cp->vuc_result);
-	v8plus_obj_rele(cp->vuc_obj);
+	if (cp->vuc_obj != NULL)
+		v8plus_obj_rele(cp->vuc_obj);
 	free(cp);
 	free(wp);
 }
@@ -876,8 +877,10 @@ v8plus_defer(void *cop, void *ctxp, v8plus_worker_f worker,
 	bzero(wp, sizeof (uv_work_t));
 	bzero(cp, sizeof (v8plus_uv_ctx_t));
 
-	v8plus_obj_hold(cop);
-	cp->vuc_obj = cop;
+	if (cop != NULL) {
+		v8plus_obj_hold(cop);
+		cp->vuc_obj = cop;
+	}
 	cp->vuc_ctx = ctxp;
 	cp->vuc_worker = worker;
 	cp->vuc_completion = completion;
