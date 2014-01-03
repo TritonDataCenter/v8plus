@@ -633,7 +633,7 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 			return (-1);
 		}
 
-		nt = va_arg(ap, data_type_t);
+		nt = va_arg(ap, v8plus_type_t);
 	}
 
 	va_end(ap);
@@ -663,7 +663,7 @@ v8plus_args(const nvlist_t *lp, uint_t flags, v8plus_type_t t, ...)
 		VERIFY(nvlist_lookup_nvpair((nvlist_t *)lp, buf, &pp) == 0);
 		VERIFY(v8plus_arg_value(nt, pp, vp) == 0);
 
-		nt = va_arg(ap, data_type_t);
+		nt = va_arg(ap, v8plus_type_t);
 	}
 
 	va_end(ap);
