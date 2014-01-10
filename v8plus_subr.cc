@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Joyent, Inc.  All rights reserved.
+ * Copyright (c) 2014 Joyent, Inc.  All rights reserved.
  */
 
 #include <sys/types.h>
@@ -13,9 +13,9 @@
 #include <v8.h>
 #include <unordered_map>
 #include <string>
+#include "v8plus_c_impl.h"
 #include "v8plus_impl.h"
 
-#define	V8PLUS_OBJ_TYPE_MEMBER	".__v8plus_type"
 #define	V8_EXCEPTION_CTOR_FMT \
 	"_ZN2v89Exception%u%sENS_6HandleINS_6StringEEE"
 
@@ -245,6 +245,8 @@ decorate_object(v8::Local<v8::Object> &oh, const nvlist_t *lp)
 
 	while ((pp =
 	    nvlist_next_nvpair(const_cast<nvlist_t *>(lp), pp)) != NULL) {
+		if (strcmp(nvpair_name(pp), V8PLUS_OBJ_TYPE_MEMBER) == 0)
+			continue;
 		oh->Set(v8::String::New(nvpair_name(pp)),
 		    v8plus::nvpair_to_v8_Value(pp));
 	}
@@ -378,22 +380,28 @@ nvlist_to_v8_argv(const nvlist_t *lp, int *argcp, v8::Handle<v8::Value> *argv)
 	*argcp = i;
 }
 
-static v8::Local<v8::Value>
-sexception(const char *type, const nvlist_t *lp, const char *msg)
+v8::Local<v8::Value>
+v8plus::exception(const nvlist_t *lp)
 {
+	const char *type;
+	const char *msg;
 	char *ctor_name;
 	v8::Local<v8::Value> (*excp_ctor)(v8::Handle<v8::String>);
 	void *obj_hdl;
 	size_t len;
 	v8::Local<v8::Value> excp;
 	v8::Local<v8::Object> obj;
-	v8::Local<v8::String> jsmsg = v8::String::New(msg);
+	v8::Local<v8::String> jsmsg;
 
-	if (type == NULL) {
-		type = v8plus_excptype(_v8plus_errno);
-		if (type == NULL)
-			type = "Error";
-	}
+	type = NULL;
+	(void) nvlist_lookup_string((nvlist_t *)lp,
+	    V8PLUS_OBJ_TYPE_MEMBER, (char **)&type);
+	if (type == NULL)
+		type = "Error";
+
+	msg = "";
+	(void) nvlist_lookup_string((nvlist_t *)lp, "message", (char **)&msg);
+	jsmsg = v8::String::New(msg);
 
 	len = snprintf(NULL, 0, V8_EXCEPTION_CTOR_FMT,
 	    (uint_t)strlen(type), type);
@@ -423,39 +431,10 @@ sexception(const char *type, const nvlist_t *lp, const char *msg)
 	excp = excp_ctor(jsmsg);
 	(void) dlclose(obj_hdl);
 
-	if (lp == NULL)
-		return (excp);
-
 	obj = excp->ToObject();
 	decorate_object(obj, lp);
 
 	return (excp);
-}
-
-v8::Local<v8::Value>
-v8plus::exception(const char *type, const nvlist_t *lp, const char *fmt, ...)
-{
-	v8::Local<v8::Value> exception;
-	char *msg;
-	size_t len;
-	va_list ap;
-
-	if (fmt != NULL) {
-		va_start(ap, fmt);
-		len = vsnprintf(NULL, 0, fmt, ap);
-		va_end(ap);
-		msg = reinterpret_cast<char *>(alloca(len + 1));
-
-		va_start(ap, fmt);
-		(void) vsnprintf(msg, len + 1, fmt, ap);
-		va_end(ap);
-	} else {
-		msg = _v8plus_errmsg;
-	}
-
-	exception = sexception(type, lp, msg);
-
-	return (exception);
 }
 
 extern "C" nvlist_t *

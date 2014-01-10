@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012 Joyent, Inc.  All rights reserved.
+ * Copyright (c) 2014 Joyent, Inc.  All rights reserved.
  */
 
 /*
@@ -16,6 +16,13 @@ var EventEmitter = require('events').EventEmitter;
 var e = example.create();
 var f = example.create('8000000000');
 
+try {
+	example.static_object('throw!');
+} catch (e) {
+	console.log('got exception: ' + e.name + ' (' + e.message + ')');
+	console.log(util.inspect(e, false, null));
+}
+
 console.log('e = ' + e.toString());
 console.log('f = ' + f.toString());
 
@@ -26,6 +33,7 @@ try {
 	e.set(0x1111111111111111);
 } catch (e) {
 	console.log('got exception: ' + e.name + ' (' + e.message + ')');
+	console.log(util.inspect(e, false, null));
 }
 
 e.set('0x1111111111111111');

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012 Joyent, Inc.  All rights reserved.
+ * Copyright (c) 2014 Joyent, Inc.  All rights reserved.
  */
 
 #include <sys/ccompile.h>
@@ -21,8 +21,10 @@ example_set_impl(example_t *ep, nvpair_t *pp)
 	case V8PLUS_TYPE_NUMBER:
 		(void) nvpair_value_double(pp, &dv);
 		if (dv > (1ULL << DBL_MANT_DIG) - 1) {
-			return (v8plus_error(V8PLUSERR_IMPRECISE,
-			    "large number lacks integer precision"));
+			return (v8plus_throw_exception("TypeError",
+			    "large number lacks integer precision",
+			    V8PLUS_TYPE_NUMBER, "approx_value", dv,
+			    V8PLUS_TYPE_NONE));
 		}
 		ep->e_val = (uint64_t)dv;
 		break;
@@ -31,12 +33,16 @@ example_set_impl(example_t *ep, nvpair_t *pp)
 		errno = 0;
 		v = (uint64_t)strtoull(sv, (char **)&ev, 0);
 		if (errno == ERANGE) {
-			return (v8plus_error(V8PLUSERR_RANGE,
-			    "value '%s' is out of range", sv));
+			return (v8plus_throw_exception("RangeError",
+			    "value is out of range",
+			    V8PLUS_TYPE_STRING, "value", sv,
+			    V8PLUS_TYPE_NONE));
 		}
 		if (ev != NULL && *ev != '\0') {
-			return (v8plus_error(V8PLUSERR_MALFORMED,
-			    "value '%s' is malformed", sv));
+			return (v8plus_throw_exception("TypeError",
+			    "value is malformed",
+			    V8PLUS_TYPE_STRING, "value", sv,
+			    V8PLUS_TYPE_NONE));
 		}
 		ep->e_val = v;
 		break;
@@ -66,7 +72,7 @@ example_ctor(const nvlist_t *ap, void **epp)
 		return (v8plus_error(V8PLUSERR_NOMEM, NULL));
 
 	(void) example_set_impl(ep, pp);
-	if (_v8plus_errno != V8PLUSERR_NOERROR) {
+	if (v8plus_exception_pending()) {
 		free(ep);
 		return (NULL);
 	}
@@ -94,7 +100,7 @@ example_set(void *op, const nvlist_t *ap)
 		return (NULL);
 
 	(void) example_set_impl(ep, pp);
-	if (_v8plus_errno != V8PLUSERR_NOERROR)
+	if (v8plus_exception_pending())
 		return (NULL);
 
 	return (v8plus_void());
@@ -114,7 +120,7 @@ example_add(void *op, const nvlist_t *ap)
 		return (NULL);
 
 	(void) example_set_impl(&ae, pp);
-	if (_v8plus_errno != V8PLUSERR_NOERROR)
+	if (v8plus_exception_pending())
 		return (NULL);
 
 	ep->e_val += ae.e_val;
@@ -143,11 +149,11 @@ example_static_add(const nvlist_t *ap)
 		return (NULL);
 
 	(void) example_set_impl(&ae0, pp0);
-	if (_v8plus_errno != V8PLUSERR_NOERROR)
+	if (v8plus_exception_pending())
 		return (NULL);
 
 	(void) example_set_impl(&ae1, pp1);
-	if (_v8plus_errno != V8PLUSERR_NOERROR)
+	if (v8plus_exception_pending())
 		return (NULL);
 
 	rv = ae0.e_val + ae1.e_val;
@@ -169,7 +175,7 @@ example_multiply(void *op, const nvlist_t *ap)
 		return (NULL);
 
 	(void) example_set_impl(&ae, pp);
-	if (_v8plus_errno != V8PLUSERR_NOERROR)
+	if (v8plus_exception_pending())
 		return (NULL);
 
 	ep->e_val *= ae.e_val;
@@ -232,7 +238,7 @@ example_multiplyAsync(void *op, const nvlist_t *ap)
 		return (v8plus_error(V8PLUSERR_NOMEM, "no memory for context"));
 
 	(void) example_set_impl(&cp->amc_operand, pp);
-	if (_v8plus_errno != V8PLUSERR_NOERROR) {
+	if (v8plus_exception_pending()) {
 		free(cp);
 		return (NULL);
 	}
@@ -249,6 +255,7 @@ static nvlist_t *
 example_toString(void *op, const nvlist_t *ap)
 {
 	example_t *ep = op;
+	nvlist_t *lp;
 	nvpair_t *pp;
 
 	/*
@@ -257,13 +264,13 @@ example_toString(void *op, const nvlist_t *ap)
 	if (v8plus_args(ap, 0,
 	    V8PLUS_TYPE_ANY, &pp, V8PLUS_TYPE_NONE) == 0) {
 		(void) v8plus_error(V8PLUSERR_EXTRAARG, NULL);
-		return (v8plus_obj(
-		    V8PLUS_TYPE_INL_OBJECT, "err",
-			V8PLUS_TYPE_NUMBER, "example_argument", (double)0,
-			V8PLUS_TYPE_NUMBER, "example_type",
+		lp = v8plus_pending_exception();
+		v8plus_obj_setprops(lp,
+		    V8PLUS_TYPE_NUMBER, "example_argument", (double)0,
+		    V8PLUS_TYPE_NUMBER, "example_type",
 			    (double)v8plus_typeof(pp),
-			V8PLUS_TYPE_NONE,
-		    V8PLUS_TYPE_NONE));
+		    V8PLUS_TYPE_NONE);
+		return (NULL);
 	}
 
 	return (v8plus_obj(
@@ -272,8 +279,18 @@ example_toString(void *op, const nvlist_t *ap)
 }
 
 static nvlist_t *
-example_static_object(const nvlist_t *ap __UNUSED)
+example_static_object(const nvlist_t *ap)
 {
+	nvpair_t *pp;
+
+	if (v8plus_args(ap, 0,
+	    V8PLUS_TYPE_ANY, &pp, V8PLUS_TYPE_NONE) == 0) {
+		return (v8plus_throw_errno_exception(ENOENT, "open",
+		    NULL, "/no/such/file",
+		    V8PLUS_TYPE_STRING, "relevance", "example",
+		    V8PLUS_TYPE_NONE));
+	}
+
 	return (v8plus_obj(
 	    V8PLUS_TYPE_INL_OBJECT, "res",
 		V8PLUS_TYPE_NUMBER, "fred", (double)555.5,
@@ -348,12 +365,12 @@ example_static_multiplyAsync(const nvlist_t *ap)
 		return (v8plus_error(V8PLUSERR_NOMEM, "no memory for context"));
 
 	(void) example_set_impl(&cp->samc_operand0, pp0);
-	if (_v8plus_errno != V8PLUSERR_NOERROR) {
+	if (v8plus_exception_pending()) {
 		free(cp);
 		return (NULL);
 	}
 	(void) example_set_impl(&cp->samc_operand1, pp1);
-	if (_v8plus_errno != V8PLUSERR_NOERROR) {
+	if (v8plus_exception_pending()) {
 		free(cp);
 		return (NULL);
 	}
