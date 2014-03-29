@@ -384,6 +384,25 @@ example_static_multiplyAsync(const nvlist_t *ap)
 	return (v8plus_void());
 }
 
+static nvlist_t *
+example_static_exception(const nvlist_t *ap)
+{
+	v8plus_jsfunc_t cb;
+	nvlist_t *lp;
+
+	(void) nvlist_alloc(&lp, NV_UNIQUE_NAME, 0);
+
+	if (v8plus_args(ap, 0,
+	    V8PLUS_TYPE_JSFUNC, &cb,
+	    V8PLUS_TYPE_NONE) != 0)
+		return (NULL);
+
+	(void) v8plus_call(cb, lp);
+	v8plus_rethrow_pending_exception();
+
+	return (NULL);
+}
+
 /*
  * v8+ boilerplate
  */
@@ -428,6 +447,10 @@ const v8plus_static_descr_t v8plus_static_methods[] = {
 	{
 		sd_name: "static_multiplyAsync",
 		sd_c_func: example_static_multiplyAsync
+	},
+	{
+		sd_name: "static_exception",
+		sd_c_func: example_static_exception
 	}
 };
 const uint_t v8plus_static_method_count =

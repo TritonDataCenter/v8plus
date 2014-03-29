@@ -111,6 +111,7 @@ extern nvlist_t *_v8plus_throw_errno_exception(int, const char *, const char *,
 
 extern boolean_t v8plus_exception_pending(void);
 extern nvlist_t *v8plus_pending_exception(void);
+extern void v8plus_rethrow_pending_exception(void);
 
 /*
  * Clear any pending exceptions and return a value suitable for returning

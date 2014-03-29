@@ -885,6 +885,25 @@ v8plus_void(void)
 }
 
 nvlist_t *
+_v8plus_alloc_exception(void)
+{
+	int err;
+	nvlist_t *lp;
+
+	if (_v8plus_pending_exception != NULL)
+		return (NULL);
+
+	if ((err = nvlist_xalloc(&lp, NV_UNIQUE_NAME, &_v8plus_nva)) != 0) {
+		v8plus_panic("unable to allocate nvlist for exception: %s",
+		    strerror(err));
+	}
+
+	_v8plus_pending_exception = lp;
+
+	return (lp);
+}
+
+nvlist_t *
 _v8plus_throw_exception(const char *type, const char *msg, const char *file,
     uint_t line, v8plus_type_t t, ...)
 {

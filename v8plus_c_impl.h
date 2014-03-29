@@ -29,6 +29,7 @@ extern __thread nvlist_t *_v8plus_pending_exception;
 extern void v8plus_clear_exception(void);
 extern boolean_t v8plus_in_event_thread(void);
 extern void v8plus_crossthread_init(void);
+extern nvlist_t *_v8plus_alloc_exception(void);
 
 #ifdef	__cplusplus
 }

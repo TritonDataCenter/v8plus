@@ -217,7 +217,7 @@ private:
 
 extern nvlist_t *v8_Arguments_to_nvlist(const V8_ARGUMENTS &);
 extern v8::Handle<v8::Value> nvpair_to_v8_Value(const nvpair_t *);
-extern v8::Local<v8::Value> exception(const nvlist_t *);
+extern v8::Handle<v8::Value> exception(const nvlist_t *);
 
 }; /* namespace v8plus */
 
