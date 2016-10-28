@@ -16,8 +16,13 @@
 #include "v8plus_c_impl.h"
 #include "v8plus_impl.h"
 
-#define	V8_EXCEPTION_CTOR_FMT \
-	"_ZN2v89Exception%u%sENS_6HandleINS_6StringEEE"
+#if NODE_VERSION_AT_LEAST(4, 0, 0)
+#define	V8_EXCEPTION_CTOR_FMT	"_ZN2v89Exception%u%sENS_5LocalINS_6StringEEE"
+#define	V8_EXCEPTION_CTOR_ARGS	v8::Local<v8::String>
+#else
+#define	V8_EXCEPTION_CTOR_FMT	"_ZN2v89Exception%u%sENS_6HandleINS_6StringEEE"
+#define	V8_EXCEPTION_CTOR_ARGS	v8::Handle<v8::String>
+#endif
 
 typedef struct cb_hdl {
 	v8::Handle<v8::Function> ch_hdl;
@@ -306,16 +311,13 @@ create_and_populate(ISOLATE_OR_UNUSED_VOID(iso), const nvlist_t *lp,
 {
 	v8::Local<v8::Object> oh;
 	const char *type;
-	const char *msg;
 	char *ctor_name;
-	v8::Local<v8::Value> (*excp_ctor)(v8::Handle<v8::String>);
+	v8::Local<v8::Value> (*excp_ctor)(V8_EXCEPTION_CTOR_ARGS);
 	v8::Local<v8::Value> array;
 	void *obj_hdl;
-	size_t len;
 	boolean_t is_array = _B_FALSE;
 	boolean_t is_excp = _B_FALSE;
 	v8::Local<v8::Value> excp;
-	v8::Local<v8::String> jsmsg;
 
 	if (nvlist_lookup_string(const_cast<nvlist_t *>(lp),
 	    V8PLUS_OBJ_TYPE_MEMBER, const_cast<char **>(&type)) != 0) {
@@ -329,27 +331,43 @@ create_and_populate(ISOLATE_OR_UNUSED_VOID(iso), const nvlist_t *lp,
 	} else if (strcmp(type, "Object") == 0) {
 		oh = V8_OBJECT_NEW(iso);
 	} else {
-		msg = "";
+		const char *msg = "";
+		size_t len;
+		v8::Local<v8::String> jsmsg;
+
+		/*
+		 * Look for a "message" property in the nvlist.
+		 */
 		(void) nvlist_lookup_string(const_cast<nvlist_t *>(lp),
 		    "message", const_cast<char **>(&msg));
 		jsmsg = V8_STRING_NEW(iso, msg);
 
+		/*
+		 * Determine the name of the C++ constructor function for the
+		 * type we are trying to create.
+		 */
 		len = snprintf(NULL, 0, V8_EXCEPTION_CTOR_FMT,
 		    (uint_t)strlen(type), type);
 		ctor_name = reinterpret_cast<char *>(alloca(len + 1));
 		(void) snprintf(ctor_name, len + 1, V8_EXCEPTION_CTOR_FMT,
 		    (uint_t)strlen(type), type);
 
+		/*
+		 * Though this almost certainly contravenes some kind of peace
+		 * time treaty, we are about to locate the particular C++
+		 * function in memory and call it.
+		 */
 		obj_hdl = dlopen(NULL, RTLD_NOLOAD);
 		if (obj_hdl == NULL)
 			v8plus_panic("%s\n", dlerror());
 
-		excp_ctor = (v8::Local<v8::Value>(*)(v8::Handle<v8::String>))(
+		excp_ctor = (v8::Local<v8::Value>(*)(V8_EXCEPTION_CTOR_ARGS))(
 		    dlsym(obj_hdl, ctor_name));
 
 		if (excp_ctor == NULL) {
 			(void) dlclose(obj_hdl);
-			v8plus_panic("Unencodable type %s, aborting\n", type);
+			v8plus_panic("Unencodable type \"%s\", aborting\n",
+			    type);
 		}
 
 		is_excp = _B_TRUE;
