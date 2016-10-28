@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Joyent, Inc.  All rights reserved.
+ * Copyright 2016 Joyent, Inc.
  */
 
 #include <sys/ccompile.h>
@@ -43,6 +43,8 @@ typedef struct v8plus_uv_ctx {
 	v8plus_worker_f vuc_worker;
 	v8plus_completion_f vuc_completion;
 } v8plus_uv_ctx_t;
+
+static pthread_mutexattr_t _v8plus_mutexattr;
 
 static STAILQ_HEAD(v8plus_callq_head, v8plus_async_call) _v8plus_callq =
     STAILQ_HEAD_INITIALIZER(_v8plus_callq);
@@ -184,7 +186,7 @@ v8plus_cross_thread_call(v8plus_async_call_t *vac)
 	/*
 	 * Common call structure initialisation:
 	 */
-	if (pthread_mutex_init(&vac->vac_mtx, NULL) != 0)
+	if (pthread_mutex_init(&vac->vac_mtx, &_v8plus_mutexattr) != 0)
 		v8plus_panic("could not init async call mutex");
 	if (pthread_cond_init(&vac->vac_cv, NULL) != 0)
 		v8plus_panic("could not init async call condvar");
@@ -328,11 +330,22 @@ v8plus_crossthread_init(void)
 	(void) nv_alloc_init(&_v8plus_nva, nv_fixed_ops,
 	    _v8plus_exception_buf, sizeof (_v8plus_exception_buf));
 
+	/*
+	 * We want error checking mutexes that do not allow recursive entry,
+	 * and which report failures due to inconsistent entry and exit.
+	 */
+	if (pthread_mutexattr_init(&_v8plus_mutexattr) != 0 ||
+	    pthread_mutexattr_settype(&_v8plus_mutexattr,
+	    PTHREAD_MUTEX_ERRORCHECK) != 0) {
+		v8plus_panic("unable to initialise mutex attributes");
+	}
+
 	_v8plus_uv_event_thread = pthread_self();
 	if (uv_async_init(uv_default_loop(), &_v8plus_uv_async,
-	    v8plus_async_callback) != 0)
+	    v8plus_async_callback) != 0) {
 		v8plus_panic("unable to initialise uv_async_t");
-	if (pthread_mutex_init(&_v8plus_callq_mtx, NULL) != 0)
+	}
+	if (pthread_mutex_init(&_v8plus_callq_mtx, &_v8plus_mutexattr) != 0)
 		v8plus_panic("unable to initialise mutex");
 
 	/*

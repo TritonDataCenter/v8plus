@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2014 Joyent, Inc.  All rights reserved.
+# Copyright 2016 Joyent, Inc.
 #
 
 #
@@ -13,7 +13,7 @@ CC =		gcc
 CXX =		g++
 CTFCONVERT =	/opt/onbld/bin/i386/ctfconvert
 CTFMERGE =	/opt/onbld/bin/i386/ctfmerge
-CTF_LABEL =	v8plus_0.3.0
+CTF_LABEL =	v8plus_0.3.2
 
 NODE_EXEC =	$(PREFIX_NODE)/bin/node
 
