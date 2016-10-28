@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Joyent, Inc.  All rights reserved.
+ * Copyright 2016 Joyent, Inc.
  */
 
 #include <sys/types.h>
@@ -99,6 +99,7 @@ v8plus::ObjectWrap::init(v8::Handle<v8::Object> target,
 	uint_t i;
 	const char *name;
 	v8plus_func_ctx_t *fcp;
+	DECLARE_ISOLATE_FROM_OBJECT(iso, target);
 	v8plus_module_defn_t *mdp =
 #if NODE_MODULE_VERSION - 13 > 0
 	    reinterpret_cast<v8plus_module_defn_t *>(priv);
@@ -120,14 +121,13 @@ v8plus::ObjectWrap::init(v8::Handle<v8::Object> target,
 		fcp->vfc_static = &mdp->vmd_static_methods[i];
 		fcp->vfc_method = NULL;
 
-		v8::Local<v8::External> ext =
-		    v8::External::New(reinterpret_cast<void*>(fcp));
-		v8::Local<v8::FunctionTemplate> fth =
-			    v8::FunctionTemplate::New(_static_entry, ext);
+		v8::Local<v8::External> ext = V8_EXTERNAL_NEW(iso, fcp);
+		v8::Local<v8::FunctionTemplate> fth = V8_FUNCTMPL_NEW(iso,
+		    _static_entry, ext);
 		v8::Local<v8::Function> fh = fth->GetFunction();
 
-		fh->SetName(v8::String::New(name));
-		target->Set(v8::String::NewSymbol(name), fh);
+		fh->SetName(V8_STRING_NEW(iso, name));
+		target->Set(V8_SYMBOL_NEW(iso, name), fh);
 	}
 
 	if (mdp->vmd_method_count > 0) {
@@ -142,14 +142,12 @@ v8plus::ObjectWrap::init(v8::Handle<v8::Object> target,
 		fcp->vfc_static = NULL;
 		fcp->vfc_method = NULL;
 
-		v8::Local<v8::External> ext =
-		    v8::External::New(reinterpret_cast<void *>(fcp));
+		v8::Local<v8::External> ext = V8_EXTERNAL_NEW(iso, fcp);
 
-		v8::Local<v8::FunctionTemplate> tpl =
-		    v8::FunctionTemplate::New(_new, ext);
+		v8::Local<v8::FunctionTemplate> tpl = V8_FUNCTMPL_NEW(iso,
+		    _new, ext);
 
-		tpl->SetClassName(v8::String::NewSymbol(
-		    mdp->vmd_js_class_name));
+		tpl->SetClassName(V8_SYMBOL_NEW(iso, mdp->vmd_js_class_name));
 		tpl->InstanceTemplate()->SetInternalFieldCount(
 		    mdp->vmd_method_count);
 
@@ -168,24 +166,24 @@ v8plus::ObjectWrap::init(v8::Handle<v8::Object> target,
 			mfcp->vfc_static = NULL;
 			mfcp->vfc_method = &mdp->vmd_methods[i];
 
-			v8::Local<v8::External> fext =
-			    v8::External::New(reinterpret_cast<void *>(mfcp));
+			v8::Local<v8::External> fext = V8_EXTERNAL_NEW(iso,
+			    mfcp);
 
-			v8::Local<v8::FunctionTemplate> fth =
-			    v8::FunctionTemplate::New(_entry, fext);
+			v8::Local<v8::FunctionTemplate> fth = V8_FUNCTMPL_NEW(
+			    iso, _entry, fext);
 			v8::Local<v8::Function> fh = fth->GetFunction();
 
-			fh->SetName(v8::String::New(name));
+			fh->SetName(V8_STRING_NEW(iso, name));
 
-			tpl->PrototypeTemplate()->Set(
-			    v8::String::NewSymbol(name), fh);
+			tpl->PrototypeTemplate()->Set(V8_SYMBOL_NEW(iso, name),
+			    fh);
 		}
 
 		V8_PF_ASSIGN(fcp->vfc_ctor, tpl->GetFunction());
 
-		target->Set(v8::String::NewSymbol(mdp->vmd_js_factory_name),
-		    v8::FunctionTemplate::New(
-		    v8plus::ObjectWrap::cons, ext)->GetFunction());
+		target->Set(V8_SYMBOL_NEW(iso, mdp->vmd_js_factory_name),
+		    V8_FUNCTMPL_NEW(iso, v8plus::ObjectWrap::cons, ext)->
+		    GetFunction());
 	}
 
 	v8plus_crossthread_init();
@@ -291,6 +289,7 @@ V8_JS_FUNC_DEFN(v8plus::ObjectWrap::_entry, args)
 	v8::String::Utf8Value selfsv(self);
 	const char *fn = *selfsv;
 	v8plus_c_method_f c_method = fcp->vfc_method->md_c_func;
+	DECLARE_ISOLATE_FROM_ARGS(iso, args);
 
 	if (c_method == NULL)
 		v8plus_panic("impossible method name %s\n", fn);
@@ -313,7 +312,7 @@ V8_JS_FUNC_DEFN(v8plus::ObjectWrap::_entry, args)
 			v8plus_panic("bad encoded value in return");
 		} else {
 			v8::Handle<v8::Value> r =
-			    v8plus::nvpair_to_v8_Value(rpp);
+			    V8PLUS_NVPAIR_TO_V8_VALUE(iso, rpp);
 			nvlist_free(c_out);
 			V8_JS_FUNC_RETURN_CLOSE(args, scope, r);
 		}
@@ -338,6 +337,7 @@ V8_JS_FUNC_DEFN(v8plus::ObjectWrap::_static_entry, args)
 	v8::String::Utf8Value selfsv(self);
 	const char *fn = *selfsv;
 	v8plus_c_static_f c_static = fcp->vfc_static->sd_c_func;
+	DECLARE_ISOLATE_FROM_ARGS(iso, args);
 
 	if (c_static == NULL)
 		v8plus_panic("impossible static method name %s\n", fn);
@@ -360,7 +360,7 @@ V8_JS_FUNC_DEFN(v8plus::ObjectWrap::_static_entry, args)
 			v8plus_panic("bad encoded value in return");
 		} else {
 			v8::Handle<v8::Value> r =
-			    v8plus::nvpair_to_v8_Value(rpp);
+			    V8PLUS_NVPAIR_TO_V8_VALUE(iso, rpp);
 			nvlist_free(c_out);
 			V8_JS_FUNC_RETURN_CLOSE(args, scope, r);
 		}
@@ -374,16 +374,17 @@ v8::Handle<v8::Value>
 v8plus::ObjectWrap::call(const char *name,
     int argc, v8::Handle<v8::Value> argv[])
 {
-	v8::Local<v8::Value> f = handle_->Get(v8::String::NewSymbol(name));
+	DECLARE_ISOLATE_FROM_CURRENT(iso);
+	v8::Local<v8::Value> f = handle_->Get(V8_SYMBOL_NEW(iso, name));
 
 	/*
  	 * XXX - we'd like to throw here, but for some reason our TryCatch
  	 * block doesn't seem to handle the exception.
  	 */
 	if (!f->IsFunction())
-		return (v8::Undefined());
+		return (V8_UNDEFINED(iso));
 
-	RETURN_NODE_MAKECALLBACK(name, argc, argv);
+	RETURN_NODE_MAKECALLBACK(iso, name, argc, argv);
 }
 
 void

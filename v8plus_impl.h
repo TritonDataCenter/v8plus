@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Joyent, Inc.  All rights reserved.
+ * Copyright 2016 Joyent, Inc.
  */
 
 #ifndef	_V8PLUS_IMPL_H
@@ -25,8 +25,75 @@
  * included from C code and contains nothing usable by consumers.
  */
 
-#define	V8PLUS_THROW_PENDING()		\
-    v8::ThrowException(v8plus::exception(_v8plus_pending_exception))
+#if NODE_VERSION_AT_LEAST(0, 12, 0)
+#define	V8PLUS_THROW_PENDING()						\
+	v8::Isolate::GetCurrent()->ThrowException(v8plus::exception(	\
+	    _v8plus_pending_exception))
+#else
+#define	V8PLUS_THROW_PENDING()						\
+	v8::ThrowException(v8plus::exception(_v8plus_pending_exception))
+#endif
+
+/*
+ * As of Node 0.12, the included V8 version requires the consumer to be aware
+ * of which "Isolate" is in use.  A variety of functions now require an isolate
+ * argument.  These definitions allow us to locate the correct isolate in Node
+ * versions that require one.
+ */
+#if NODE_VERSION_AT_LEAST(0, 12, 0)
+#define	DECLARE_ISOLATE_FROM_OBJECT(vname, obj)				\
+	v8::Isolate *vname = obj->CreationContext()->GetIsolate()
+#define	DECLARE_ISOLATE_FROM_ARGS(vname, args)				\
+	v8::Isolate *vname = args.GetIsolate()
+#define	DECLARE_ISOLATE_FROM_CURRENT(vname)				\
+	v8::Isolate *vname = v8::Isolate::GetCurrent()
+#define	USE_ISOLATE(i)			i,
+#define	USE_ISOLATE_ONLY(i)		i
+#define	ISOLATE_OR_UNUSED(argname)	v8::Isolate *argname
+#define	ISOLATE_OR_NULL(i)		i
+#define	V8_GET_GLOBAL(iso)		iso->GetCurrentContext()->Global()
+
+#else	/* pre 0.12 */
+#define	DECLARE_ISOLATE_FROM_OBJECT(vname, obj)
+#define	DECLARE_ISOLATE_FROM_ARGS(vname, args)
+#define	DECLARE_ISOLATE_FROM_CURRENT(vname)
+#define	USE_ISOLATE(i)
+#define	USE_ISOLATE_ONLY(i)
+#define	ISOLATE_OR_UNUSED(argname)	void *argname __UNUSED
+#define	ISOLATE_OR_NULL(i)		NULL
+#define	V8_GET_GLOBAL(iso)		v8::Context::GetCurrent()->Global()
+
+#endif
+
+/*
+ * Node 0.12 changed the allocation of strings to be more explicit about the
+ * encoding, and to require the consumer to pass the isolate.
+ */
+#if NODE_VERSION_AT_LEAST(0, 12, 0)
+#define	V8_STRING_NEW(isolate, cstr)					\
+	v8::String::NewFromUtf8(isolate, cstr)
+#define	V8_SYMBOL_NEW(isolate, cstr)					\
+	v8::String::NewFromUtf8(isolate, cstr, v8::String::kInternalizedString)
+#else
+#define	V8_STRING_NEW(isolate, cstr)	v8::String::New(cstr)
+#define	V8_SYMBOL_NEW(isolate, cstr)	v8::String::NewSymbol(cstr)
+#endif
+
+#define	V8_EXTERNAL_NEW(isolate, ptr)					\
+	v8::External::New(USE_ISOLATE(isolate) reinterpret_cast<void*>(ptr))
+#define	V8_FUNCTMPL_NEW(isolate, funcp, externalp)			\
+	v8::FunctionTemplate::New(USE_ISOLATE(isolate) funcp, externalp)
+#define	V8_UNDEFINED(isolate)						\
+	v8::Undefined(USE_ISOLATE_ONLY(isolate))
+#define	V8_NULL(isolate)						\
+	v8::Null(USE_ISOLATE_ONLY(isolate))
+#define	V8_ARRAY_NEW(isolate)						\
+	v8::Array::New(USE_ISOLATE_ONLY(isolate))
+#define	V8_OBJECT_NEW(isolate)						\
+	v8::Object::New(USE_ISOLATE_ONLY(isolate))
+
+#define	V8PLUS_NVPAIR_TO_V8_VALUE(isolate, nvpair)			\
+	v8plus::nvpair_to_v8_Value(ISOLATE_OR_NULL(isolate), nvpair)
 
 /*
  * This is all very gross.  V8 has a lot of pointless churn in the form of
@@ -38,20 +105,26 @@
  *
  * Way to go, Google.
  */
-#if NODE_VERSION_AT_LEAST(0, 11, 3)
-#define	RETURN_NODE_MAKECALLBACK(_f, _c, _v)	\
-do {						\
+#if NODE_VERSION_AT_LEAST(0, 12, 0)
+#define	RETURN_NODE_MAKECALLBACK(_i, _f, _c, _v)	\
+do {							\
+	node::MakeCallback(_i, handle(), _f, _c, _v);	\
+	return (V8_UNDEFINED(_i));			\
+} while (0)
+#elif NODE_VERSION_AT_LEAST(0, 11, 3)
+#define	RETURN_NODE_MAKECALLBACK(_i, _f, _c, _v)	\
+do {							\
 	node::MakeCallback(handle(), _f, _c, _v);	\
-	return (v8::Undefined());		\
+	return (V8_UNDEFINED(_i));			\
 } while (0)
 #elif NODE_VERSION_AT_LEAST(0, 8, 0)
-#define	RETURN_NODE_MAKECALLBACK(_f, _c, _v)	\
+#define	RETURN_NODE_MAKECALLBACK(_i, _f, _c, _v)	\
     return (node::MakeCallback(handle_, _f, _c, _v))
 #else
-#define	RETURN_NODE_MAKECALLBACK(_f, _c, _v)	\
-do {						\
+#define	RETURN_NODE_MAKECALLBACK(_i, _f, _c, _v)	\
+do {							\
 	node::MakeCallback(handle_, _f, _c, _v);	\
-	return (v8::Undefined());		\
+	return (V8_UNDEFINED(_i));			\
 } while (0)
 #endif
 
@@ -216,7 +289,8 @@ private:
 };
 
 extern nvlist_t *v8_Arguments_to_nvlist(const V8_ARGUMENTS &);
-extern v8::Handle<v8::Value> nvpair_to_v8_Value(const nvpair_t *);
+extern v8::Handle<v8::Value> nvpair_to_v8_Value(ISOLATE_OR_UNUSED(_),
+    const nvpair_t *);
 extern v8::Handle<v8::Value> exception(const nvlist_t *);
 
 }; /* namespace v8plus */

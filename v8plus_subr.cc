@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Joyent, Inc.  All rights reserved.
+ * Copyright 2016 Joyent, Inc.
  */
 
 #include <sys/types.h>
@@ -16,8 +16,37 @@
 #include "v8plus_c_impl.h"
 #include "v8plus_impl.h"
 
-#define	V8_EXCEPTION_CTOR_FMT \
-	"_ZN2v89Exception%u%sENS_6HandleINS_6StringEEE"
+/*
+ * The V8 API includes a class with static methods that allow C++ code to
+ * construct instances of the basic Javascript Error types; e.g. Error,
+ * TypeError, ReferenceError, etc.  These functions accept a string that will
+ * become the "message" property of the returned Error instance.  See the
+ * "Exception" class defined in "deps/v8/include/v8.h" of the appropriate Node
+ * source tree.
+ *
+ * The signature of these methods has, like much of the V8 API, changed
+ * essentially needlessly over time.  In order to effect dynamic dispatch to
+ * these methods in the face of those changes, we need to vary the mangled
+ * symbol name template we use depending on the Node version.
+ */
+#if NODE_VERSION_AT_LEAST(4, 0, 0)
+/*
+ * In Node 4.X, the signature of the error construction routines has changed.
+ * For example, the "Error" constructor is now:
+ *
+ *	static Local<Value> Error(Local<String> message);
+ */
+#define	V8_EXCEPTION_CTOR_FMT	"_ZN2v89Exception%u%sENS_5LocalINS_6StringEEE"
+#define	V8_EXCEPTION_CTOR_ARGS	v8::Local<v8::String>
+#else
+/*
+ * In older Node versions, the C++ function signature is of the form:
+ *
+ *	static Local<Value> Error(Handle<String> message);
+ */
+#define	V8_EXCEPTION_CTOR_FMT	"_ZN2v89Exception%u%sENS_6HandleINS_6StringEEE"
+#define	V8_EXCEPTION_CTOR_ARGS	v8::Handle<v8::String>
+#endif
 
 typedef struct cb_hdl {
 	v8::Handle<v8::Function> ch_hdl;
@@ -93,6 +122,7 @@ static int
 v8_Object_to_nvlist(const v8::Handle<v8::Value> &vh, nvlist_t *lp)
 {
 	v8::Local<v8::Object> oh = vh->ToObject();
+	DECLARE_ISOLATE_FROM_OBJECT(iso, oh);
 	v8::Local<v8::Array> keys = oh->GetPropertyNames();
 	v8::Local<v8::String> th = oh->GetConstructorName();
 	v8::String::Utf8Value tv(th);
@@ -133,7 +163,7 @@ v8_Object_to_nvlist(const v8::Handle<v8::Value> &vh, nvlist_t *lp)
 	if (is_excp) {
 		v8::Local<v8::Value> mv;
 
-		mv = oh->Get(v8::String::New("message"));
+		mv = oh->Get(V8_STRING_NEW(iso, "message"));
 
 		if ((err = nvlist_add_v8_Value(lp, "message", mv)) != 0)
 			return (err);
@@ -146,7 +176,7 @@ v8_Object_to_nvlist(const v8::Handle<v8::Value> &vh, nvlist_t *lp)
 		const char *k;
 
 		(void) snprintf(knname, sizeof (knname), "%u", i);
-		mk = keys->Get(v8::String::New(knname));
+		mk = keys->Get(V8_STRING_NEW(iso, knname));
 		mv = oh->Get(mk);
 		v8::String::Utf8Value mks(mk);
 		k = cstr(mks);
@@ -285,7 +315,8 @@ v8plus::v8_Arguments_to_nvlist(const V8_ARGUMENTS &args)
 }
 
 static void
-decorate_object(v8::Local<v8::Object> &oh, const nvlist_t *lp)
+decorate_object(ISOLATE_OR_UNUSED(iso), v8::Local<v8::Object> &oh,
+    const nvlist_t *lp)
 {
 	nvpair_t *pp = NULL;
 
@@ -293,59 +324,86 @@ decorate_object(v8::Local<v8::Object> &oh, const nvlist_t *lp)
 	    nvlist_next_nvpair(const_cast<nvlist_t *>(lp), pp)) != NULL) {
 		if (strcmp(nvpair_name(pp), V8PLUS_OBJ_TYPE_MEMBER) == 0)
 			continue;
-		oh->Set(v8::String::New(nvpair_name(pp)),
-		    v8plus::nvpair_to_v8_Value(pp));
+		oh->Set(V8_STRING_NEW(iso, nvpair_name(pp)),
+		    V8PLUS_NVPAIR_TO_V8_VALUE(iso, pp));
 	}
 }
 
 static v8::Handle<v8::Value>
-create_and_populate(const nvlist_t *lp, const char *deftype)
+create_and_populate(ISOLATE_OR_UNUSED(iso), const nvlist_t *lp,
+    const char *deftype)
 {
 	v8::Local<v8::Object> oh;
 	const char *type;
-	const char *msg;
-	char *ctor_name;
-	v8::Local<v8::Value> (*excp_ctor)(v8::Handle<v8::String>);
 	v8::Local<v8::Value> array;
-	void *obj_hdl;
-	size_t len;
 	boolean_t is_array = _B_FALSE;
 	boolean_t is_excp = _B_FALSE;
 	v8::Local<v8::Value> excp;
-	v8::Local<v8::String> jsmsg;
 
 	if (nvlist_lookup_string(const_cast<nvlist_t *>(lp),
-	    V8PLUS_OBJ_TYPE_MEMBER, const_cast<char **>(&type)) != 0)
+	    V8PLUS_OBJ_TYPE_MEMBER, const_cast<char **>(&type)) != 0) {
 		type = deftype;
+	}
 
 	if (strcmp(type, "Array") == 0) {
-		array = v8::Array::New();
+		array = V8_ARRAY_NEW(iso);
 		oh = array->ToObject();
 		is_array = _B_TRUE;
 	} else if (strcmp(type, "Object") == 0) {
-		oh = v8::Object::New();
+		oh = V8_OBJECT_NEW(iso);
 	} else {
-		msg = "";
+		/*
+		 * If this is neither an Array, nor an Object, we assume the
+		 * type name is that of on of the exception classes (e.g.
+		 * Error, TypeError, etc).
+		 */
+		const char *msg = "";
+		size_t len;
+		v8::Local<v8::String> jsmsg;
+		char *ctor_name;
+		v8::Local<v8::Value> (*excp_ctor)(V8_EXCEPTION_CTOR_ARGS);
+		void *obj_hdl;
+
+		/*
+		 * Look for a "message" property in the nvlist to use when
+		 * constructing the exception object.
+		 */
 		(void) nvlist_lookup_string(const_cast<nvlist_t *>(lp),
 		    "message", const_cast<char **>(&msg));
-		jsmsg = v8::String::New(msg);
+		jsmsg = V8_STRING_NEW(iso, msg);
 
+		/*
+		 * Determine the name of the C++ function that will construct
+		 * the type of object we are trying to create.
+		 */
 		len = snprintf(NULL, 0, V8_EXCEPTION_CTOR_FMT,
 		    (uint_t)strlen(type), type);
 		ctor_name = reinterpret_cast<char *>(alloca(len + 1));
 		(void) snprintf(ctor_name, len + 1, V8_EXCEPTION_CTOR_FMT,
 		    (uint_t)strlen(type), type);
 
+		/*
+		 * Casting aside any delusions of dignity, we use dlsym(3C) to
+		 * locate the particular C++ function in memory and call it.
+		 */
 		obj_hdl = dlopen(NULL, RTLD_NOLOAD);
 		if (obj_hdl == NULL)
 			v8plus_panic("%s\n", dlerror());
 
-		excp_ctor = (v8::Local<v8::Value>(*)(v8::Handle<v8::String>))(
+		excp_ctor = (v8::Local<v8::Value>(*)(V8_EXCEPTION_CTOR_ARGS))(
 		    dlsym(obj_hdl, ctor_name));
 
 		if (excp_ctor == NULL) {
+			/*
+			 * Getting here could mean either that there is not a
+			 * static function for constructing this exception
+			 * type, or that the type signature has changed again
+			 * for this Node version.  Some combination of nm(1)
+			 * and c++filt will likely feature in your future.
+			 */
 			(void) dlclose(obj_hdl);
-			v8plus_panic("Unencodable type %s, aborting\n", type);
+			v8plus_panic("could not locate exception "
+			    "constructor for \"%s\"\n", type);
 		}
 
 		is_excp = _B_TRUE;
@@ -355,7 +413,7 @@ create_and_populate(const nvlist_t *lp, const char *deftype)
 		oh = excp->ToObject();
 	}
 
-	decorate_object(oh, lp);
+	decorate_object(iso, oh, lp);
 
 	if (is_array)
 		return (array);
@@ -365,21 +423,21 @@ create_and_populate(const nvlist_t *lp, const char *deftype)
 	return (oh);
 }
 
-#define	RETURN_JS(_p, _jt, _ct, _xt, _pt) \
+#define	RETURN_JS(_iso, _p, _jt, _ct, _xt, _pt) \
 	do { \
 		_ct _v; \
 		(void) nvpair_value_##_pt(const_cast<nvpair_t *>(_p), &_v); \
-		return (v8::_jt::New((_xt)_v)); \
+		return (v8::_jt::New(USE_ISOLATE(_iso) (_xt)_v)); \
 	} while (0)
 
 v8::Handle<v8::Value>
-v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
+v8plus::nvpair_to_v8_Value(ISOLATE_OR_UNUSED(iso), const nvpair_t *pp)
 {
 	switch (nvpair_type(const_cast<nvpair_t *>(pp))) {
 	case DATA_TYPE_BOOLEAN:
-		return (v8::Undefined());
+		return (V8_UNDEFINED(iso));
 	case DATA_TYPE_BOOLEAN_VALUE:
-		RETURN_JS(pp, Boolean, boolean_t, bool, boolean_value);
+		RETURN_JS(iso, pp, Boolean, boolean_t, bool, boolean_value);
 	case DATA_TYPE_BYTE:
 	{
 		uint8_t _v = (uint8_t)-1;
@@ -389,28 +447,34 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 			v8plus_panic("bad byte value %02x\n", _v);
 		}
 
-		return (v8::Null());
+		return (V8_NULL(iso));
 	}
 	case DATA_TYPE_INT8:
-		RETURN_JS(pp, Number, int8_t, double, int8);
+		RETURN_JS(iso, pp, Number, int8_t, double, int8);
 	case DATA_TYPE_UINT8:
-		RETURN_JS(pp, Number, uint8_t, double, uint8);
+		RETURN_JS(iso, pp, Number, uint8_t, double, uint8);
 	case DATA_TYPE_INT16:
-		RETURN_JS(pp, Number, int16_t, double, int16);
+		RETURN_JS(iso, pp, Number, int16_t, double, int16);
 	case DATA_TYPE_UINT16:
-		RETURN_JS(pp, Number, uint16_t, double, uint16);
+		RETURN_JS(iso, pp, Number, uint16_t, double, uint16);
 	case DATA_TYPE_INT32:
-		RETURN_JS(pp, Number, int32_t, double, int32);
+		RETURN_JS(iso, pp, Number, int32_t, double, int32);
 	case DATA_TYPE_UINT32:
-		RETURN_JS(pp, Number, uint32_t, double, uint32);
+		RETURN_JS(iso, pp, Number, uint32_t, double, uint32);
 	case DATA_TYPE_INT64:
-		RETURN_JS(pp, Number, int64_t, double, int64);
+		RETURN_JS(iso, pp, Number, int64_t, double, int64);
 	case DATA_TYPE_UINT64:
-		RETURN_JS(pp, Number, uint64_t, double, uint64);
+		RETURN_JS(iso, pp, Number, uint64_t, double, uint64);
 	case DATA_TYPE_DOUBLE:
-		RETURN_JS(pp, Number, double, double, double);
+		RETURN_JS(iso, pp, Number, double, double, double);
 	case DATA_TYPE_STRING:
-		RETURN_JS(pp, String, char *, const char *, string);
+	{
+		char *vp;
+
+		(void) nvpair_value_string(const_cast<nvpair_t *>(pp), &vp);
+
+		return (V8_STRING_NEW(iso, vp));
+	}
 	case DATA_TYPE_UINT64_ARRAY:
 	{
 		std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
@@ -434,7 +498,7 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 
 		(void) nvpair_value_nvlist(const_cast<nvpair_t *>(pp), &lp);
 
-		return (create_and_populate(lp, "Object"));
+		return (create_and_populate(iso, lp, "Object"));
 	}
 	default:
 		v8plus_panic("bad data type %d\n",
@@ -442,7 +506,7 @@ v8plus::nvpair_to_v8_Value(const nvpair_t *pp)
 	}
 
 	/*NOTREACHED*/
-	return (v8::Undefined());
+	return (V8_UNDEFINED(iso));
 }
 
 #undef	RETURN_JS
@@ -461,7 +525,8 @@ nvlist_length(const nvlist_t *lp)
 }
 
 static void
-nvlist_to_v8_argv(const nvlist_t *lp, int *argcp, v8::Handle<v8::Value> *argv)
+nvlist_to_v8_argv(ISOLATE_OR_UNUSED(iso), const nvlist_t *lp, int *argcp,
+    v8::Handle<v8::Value> *argv)
 {
 	nvpair_t *pp;
 	char name[16];
@@ -472,7 +537,7 @@ nvlist_to_v8_argv(const nvlist_t *lp, int *argcp, v8::Handle<v8::Value> *argv)
 		if (nvlist_lookup_nvpair(const_cast<nvlist_t *>(lp),
 		    name, &pp) != 0)
 			break;
-		argv[i] = v8plus::nvpair_to_v8_Value(pp);
+		argv[i] = V8PLUS_NVPAIR_TO_V8_VALUE(iso, pp);
 	}
 
 	*argcp = i;
@@ -481,7 +546,9 @@ nvlist_to_v8_argv(const nvlist_t *lp, int *argcp, v8::Handle<v8::Value> *argv)
 v8::Handle<v8::Value>
 v8plus::exception(const nvlist_t *lp)
 {
-	return (create_and_populate(lp, "Error"));
+	DECLARE_ISOLATE_FROM_CURRENT(iso);
+
+	return (create_and_populate(ISOLATE_OR_NULL(iso), lp, "Error"));
 }
 
 extern "C" nvlist_t *
@@ -494,12 +561,13 @@ v8plus_call_direct(v8plus_jsfunc_t f, const nvlist_t *lp)
 	v8::Handle<v8::Value> argv[max_argc];
 	v8::Handle<v8::Value> res;
 	nvlist_t *rp;
+	DECLARE_ISOLATE_FROM_CURRENT(iso);
 
 	if ((it = cbhash.find(f)) == cbhash.end())
 		v8plus_panic("callback hash tag %llu not found", f);
 
 	argc = max_argc;
-	nvlist_to_v8_argv(lp, &argc, argv);
+	nvlist_to_v8_argv(ISOLATE_OR_NULL(iso), lp, &argc, argv);
 
 	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
 		return (v8plus_nverr(err, NULL));
@@ -507,10 +575,9 @@ v8plus_call_direct(v8plus_jsfunc_t f, const nvlist_t *lp)
 	v8::TryCatch tc;
 	if (it->second.ch_persist) {
 		res = V8_LOCAL(it->second.ch_phdl, v8::Function)->Call(
-		    v8::Context::GetCurrent()->Global(), argc, argv);
+		    V8_GET_GLOBAL(iso), argc, argv);
 	} else {
-		res = it->second.ch_hdl->Call(
-		    v8::Context::GetCurrent()->Global(), argc, argv);
+		res = it->second.ch_hdl->Call(V8_GET_GLOBAL(iso), argc, argv);
 	}
 	if (tc.HasCaught()) {
 		v8plus_throw_v8_exception(tc.Exception());
@@ -535,12 +602,13 @@ v8plus_method_call_direct(void *cop, const char *name, const nvlist_t *lp)
 	v8::Handle<v8::Value> argv[max_argc];
 	v8::Handle<v8::Value> res;
 	nvlist_t *rp;
+	DECLARE_ISOLATE_FROM_CURRENT(iso);
 
 	if (v8plus_in_event_thread() != _B_TRUE)
 		v8plus_panic("direct method call outside of event loop");
 
 	argc = max_argc;
-	nvlist_to_v8_argv(lp, &argc, argv);
+	nvlist_to_v8_argv(ISOLATE_OR_NULL(iso), lp, &argc, argv);
 
 	if ((err = nvlist_alloc(&rp, NV_UNIQUE_NAME, 0)) != 0)
 		return (v8plus_nverr(err, NULL));
@@ -615,7 +683,11 @@ v8plus_jsfunc_rele_direct(v8plus_jsfunc_t f)
 
 	if (--it->second.ch_refs == 0) {
 		if (it->second.ch_persist) {
+#if NODE_VERSION_AT_LEAST(0, 12, 0)
+			it->second.ch_phdl.Reset();
+#else
 			it->second.ch_phdl.Dispose();
+#endif
 		}
 		cbhash.erase(it);
 	}
