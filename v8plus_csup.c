@@ -106,11 +106,28 @@ v8plus_async_callback(uv_async_t *async __UNUSED)
 v8plus_async_callback(uv_async_t *async __UNUSED, int status __UNUSED)
 #endif
 {
+	int processed = 0;
+
 	if (v8plus_in_event_thread() != B_TRUE)
 		v8plus_panic("async callback called outside of event loop");
 
 	for (;;) {
 		v8plus_async_call_t *vac = NULL;
+
+		/*
+		 * If a high rate of work arrives from other threads, it's
+		 * possible that we'll remain in this loop forever.  To
+		 * prevent that from happening, we will process a maximum
+		 * of 1000 function calls per turn of the event loop.
+		 */
+		if (processed > 1000) {
+			/*
+			 * Make sure this callback is called again on the
+			 * next turn.
+			 */
+			uv_async_send(&_v8plus_uv_async);
+			break;
+		}
 
 		/*
 		 * Fetch the next queued method:
@@ -130,6 +147,7 @@ v8plus_async_callback(uv_async_t *async __UNUSED, int status __UNUSED)
 		/*
 		 * Run the queued method:
 		 */
+		processed++;
 		if (vac->vac_flags & ACF_COMPLETED)
 			v8plus_panic("async call already run");
 
