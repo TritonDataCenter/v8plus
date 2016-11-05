@@ -1,5 +1,10 @@
 # v8plus Change History
 
+## 1.0.1
+
+A minor bug fix that allows C constructors to indicate an exception without
+inducing a core dump.
+
 ## 1.0.0
 
 This is the first major release of *v8plus*.  Throughout its development

@@ -234,6 +234,16 @@ v8plus::ObjectWrap::~ObjectWrap()
 	v8plus_module_defn_t *mdp =
 	    reinterpret_cast<v8plus_module_defn_t *>(_defn);
 
+	if (_c_impl == NULL) {
+		/*
+		 * If the pointer is NULL, it means we are in the ObjectWrap
+		 * destructor after the C constructor indicated an exception.
+		 * In this case, we don't call the C destructor -- and indeed
+		 * _defn is uninitialized so we must not attempt to use it.
+		 */
+		return;
+	}
+
 	mdp->vmd_dtor(_c_impl);
 	(void) _objhash.erase(_c_impl);
 }
