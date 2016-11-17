@@ -256,8 +256,12 @@ V8_JS_FUNC_DEFN(v8plus::ObjectWrap::cons, args)
 	v8::Local<v8::External> ext = data.As<v8::External>();
 	v8plus_func_ctx_t* fcp =
 	    reinterpret_cast<v8plus_func_ctx_t *>(ext->Value());
-	const unsigned argc = 1;
-	v8::Handle<v8::Value> argv[argc] = { args[0] };
+	const unsigned argc = args.Length();
+	v8::Handle<v8::Value> argv[argc];
+
+	for (unsigned i = 0; i < argc; i++)
+		argv[i] = args[i];
+
 	v8::Local<v8::Object> instance =
 	    V8_LOCAL(fcp->vfc_ctor, v8::Function)->NewInstance(argc, argv);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Joyent, Inc.  All rights reserved.
+ * Copyright (c) 2016 Joyent, Inc.  All rights reserved.
  */
 
 #include <sys/ccompile.h>
@@ -60,7 +60,7 @@ example_set_impl(example_t *ep, nvpair_t *pp)
 static nvlist_t *
 example_ctor(const nvlist_t *ap, void **epp)
 {
-	nvpair_t *pp;
+	nvpair_t *pp = NULL;
 	example_t *ep;
 
 	if (v8plus_args(ap, V8PLUS_ARG_F_NOEXTRA, V8PLUS_TYPE_NONE) != 0 &&
@@ -71,7 +71,9 @@ example_ctor(const nvlist_t *ap, void **epp)
 	if ((ep = malloc(sizeof (example_t))) == NULL)
 		return (v8plus_error(V8PLUSERR_NOMEM, NULL));
 
-	(void) example_set_impl(ep, pp);
+	if (pp != NULL)
+		(void) example_set_impl(ep, pp);
+
 	if (v8plus_exception_pending()) {
 		free(ep);
 		return (NULL);

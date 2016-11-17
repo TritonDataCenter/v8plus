@@ -488,7 +488,8 @@ v8plus::nvpair_to_v8_Value(ISOLATE_OR_UNUSED(iso), const nvpair_t *pp)
 		if (nv != 1)
 			v8plus_panic("bad uint64 array length %u", nv);
 		if ((it = cbhash.find(*vp)) == cbhash.end())
-			v8plus_panic("callback hash tag %llu not found", *vp);
+			v8plus_panic("callback hash tag %llu not found",
+			    (unsigned long long)*vp);
 
 		return (it->second.ch_hdl);
 	}
@@ -564,7 +565,8 @@ v8plus_call_direct(v8plus_jsfunc_t f, const nvlist_t *lp)
 	DECLARE_ISOLATE_FROM_CURRENT(iso);
 
 	if ((it = cbhash.find(f)) == cbhash.end())
-		v8plus_panic("callback hash tag %llu not found", f);
+		v8plus_panic("callback hash tag %llu not found",
+		    (unsigned long long)f);
 
 	argc = max_argc;
 	nvlist_to_v8_argv(ISOLATE_OR_NULL(iso), lp, &argc, argv);
@@ -654,7 +656,8 @@ v8plus_jsfunc_hold(v8plus_jsfunc_t f)
 	std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
 
 	if ((it = cbhash.find(f)) == cbhash.end())
-		v8plus_panic("callback hash tag %llu not found", f);
+		v8plus_panic("callback hash tag %llu not found",
+		    (unsigned long long)f);
 
 	if (!it->second.ch_persist) {
 		V8_PF_ASSIGN(it->second.ch_phdl, it->second.ch_hdl);
@@ -676,10 +679,12 @@ v8plus_jsfunc_rele_direct(v8plus_jsfunc_t f)
 	std::unordered_map<uint64_t, cb_hdl_t>::iterator it;
 
 	if ((it = cbhash.find(f)) == cbhash.end())
-		v8plus_panic("callback hash tag %llu not found", f);
+		v8plus_panic("callback hash tag %llu not found",
+		    (unsigned long long)f);
 
 	if (it->second.ch_refs == 0)
-		v8plus_panic("releasing unheld callback hash tag %llu", f);
+		v8plus_panic("releasing unheld callback hash tag %llu",
+		    (unsigned long long)f);
 
 	if (--it->second.ch_refs == 0) {
 		if (it->second.ch_persist) {

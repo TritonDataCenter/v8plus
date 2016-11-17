@@ -1,5 +1,11 @@
 # v8plus Change History
 
+## 1.0.2
+
+Fixes a bug whereby C constructors were silently forced into having one
+(and exactly one) argument -- resulting in incorrect behavior when the
+number of arguments was zero or more than one.
+
 ## 1.0.1
 
 A minor bug fix that allows C constructors to indicate an exception without

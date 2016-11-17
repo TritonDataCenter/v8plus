@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012 Joyent, Inc.  All rights reserved.
+# Copyright (c) 2016 Joyent, Inc.  All rights reserved.
 #
 
 V8PLUS =	..
@@ -14,8 +14,11 @@ SRCS =	\
 
 ERRNO_JSON =	errno.json
 
-PREFIX_NODE =	/opt/local
+PREFIX_NODE =	$(shell dirname $$(bash -c 'hash node; hash -t node'))/..
 CC =		/opt/local/bin/gcc
 CXX =		/opt/local/bin/g++
+
+CTFCONVERT =	/bin/true
+CTFMERGE =	/bin/true
 
 include $(V8PLUS)/Makefile.v8plus.targ
