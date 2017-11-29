@@ -51,6 +51,7 @@ static STAILQ_HEAD(v8plus_callq_head, v8plus_async_call) _v8plus_callq =
 static pthread_mutex_t _v8plus_callq_mtx;
 static pthread_t _v8plus_uv_event_thread;
 static uv_async_t _v8plus_uv_async;
+static char _v8plus_panic_buf[1024];
 
 static int _v8plus_eventloop_refcount;
 
@@ -184,9 +185,9 @@ v8plus_async_callback(uv_async_t *async __UNUSED, int status __UNUSED)
 			 * on a reply.  Just free the call structure and move
 			 * on.
 			 */
-			free(vac);
 			if (vac->vac_lp != NULL)
 				nvlist_free((nvlist_t *)vac->vac_lp);
+			free(vac);
 			continue;
 		}
 
@@ -221,6 +222,7 @@ v8plus_async_callback(uv_async_t *async __UNUSED, int status __UNUSED)
 static nvlist_t *
 v8plus_cross_thread_call(v8plus_async_call_t *vac)
 {
+	boolean_t noreply = (vac->vac_flags & ACF_NOREPLY);
 	int err;
 
 	/*
@@ -254,7 +256,7 @@ v8plus_cross_thread_call(v8plus_async_call_t *vac)
 	}
 	uv_async_send(&_v8plus_uv_async);
 
-	if (vac->vac_flags & ACF_NOREPLY) {
+	if (noreply) {
 		/*
 		 * The caller does not care about the reply, and has allocated
 		 * the v8plus_async_call_t structure from the heap.  The
@@ -564,6 +566,8 @@ static void __NORETURN
 v8plus_vpanic(const char *fmt, va_list ap)
 {
 	(void) fprintf(stderr, "v8plus: ");
+	(void) vsnprintf(_v8plus_panic_buf, sizeof (_v8plus_panic_buf),
+	    fmt, ap);
 	(void) vfprintf(stderr, fmt, ap);
 	(void) fflush(stderr);
 	abort();

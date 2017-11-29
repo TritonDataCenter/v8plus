@@ -1,5 +1,10 @@
 # v8plus Change History
 
+## 1.0.3
+
+Fixes a use-after-free bug, which could, in the right circumstances, cause
+the program to crash.
+
 ## 1.0.2
 
 Fixes a bug whereby C constructors were silently forced into having one
