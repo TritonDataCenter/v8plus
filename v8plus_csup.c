@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 Joyent, Inc.
+ * Copyright 2017 Joyent, Inc.
  */
 
 #include <sys/ccompile.h>
@@ -107,6 +107,7 @@ v8plus_async_callback(uv_async_t *async __UNUSED, int status __UNUSED)
 #endif
 {
 	int processed = 0;
+	int err;
 
 	if (v8plus_in_event_thread() != B_TRUE)
 		v8plus_panic("async callback called outside of event loop");
@@ -132,14 +133,20 @@ v8plus_async_callback(uv_async_t *async __UNUSED, int status __UNUSED)
 		/*
 		 * Fetch the next queued method:
 		 */
-		if (pthread_mutex_lock(&_v8plus_callq_mtx) != 0)
-			v8plus_panic("could not lock async queue mutex");
+		err = pthread_mutex_lock(&_v8plus_callq_mtx);
+		if (err != 0) {
+			v8plus_panic("could not lock async queue mutex: %s",
+			    strerror(err));
+		}
 		if (!STAILQ_EMPTY(&_v8plus_callq)) {
 			vac = STAILQ_FIRST(&_v8plus_callq);
 			STAILQ_REMOVE_HEAD(&_v8plus_callq, vac_callq_entry);
 		}
-		if (pthread_mutex_unlock(&_v8plus_callq_mtx) != 0)
-			v8plus_panic("could not unlock async queue mutex");
+		err = pthread_mutex_unlock(&_v8plus_callq_mtx);
+		if (err != 0) {
+			v8plus_panic("could not unlock async queue mutex: %s",
+			    strerror(err));
+		}
 
 		if (vac == NULL)
 			break;
@@ -183,13 +190,22 @@ v8plus_async_callback(uv_async_t *async __UNUSED, int status __UNUSED)
 			continue;
 		}
 
-		if (pthread_mutex_lock(&vac->vac_mtx) != 0)
-			v8plus_panic("could not lock async call mutex");
+		err = pthread_mutex_lock(&vac->vac_mtx);
+		if (err != 0) {
+			v8plus_panic("could not lock async call mutex: %s",
+			    strerror(err));
+		}
 		vac->vac_flags |= ACF_COMPLETED;
-		if (pthread_cond_broadcast(&vac->vac_cv) != 0)
-			v8plus_panic("could not signal async call condvar");
-		if (pthread_mutex_unlock(&vac->vac_mtx) != 0)
-			v8plus_panic("could not unlock async call mutex");
+		err = pthread_cond_broadcast(&vac->vac_cv);
+		if (err != 0) {
+			v8plus_panic("could not signal async call condvar: %s",
+			    strerror(err));
+		}
+		err = pthread_mutex_unlock(&vac->vac_mtx);
+		if (err != 0) {
+			v8plus_panic("could not unlock async call mutex: %s",
+			    strerror(err));
+		}
 	}
 }
 
@@ -205,23 +221,37 @@ v8plus_async_callback(uv_async_t *async __UNUSED, int status __UNUSED)
 static nvlist_t *
 v8plus_cross_thread_call(v8plus_async_call_t *vac)
 {
+	int err;
+
 	/*
 	 * Common call structure initialisation:
 	 */
-	if (pthread_mutex_init(&vac->vac_mtx, &_v8plus_mutexattr) != 0)
-		v8plus_panic("could not init async call mutex");
-	if (pthread_cond_init(&vac->vac_cv, NULL) != 0)
-		v8plus_panic("could not init async call condvar");
+	err = pthread_mutex_init(&vac->vac_mtx, &_v8plus_mutexattr);
+	if (err != 0) {
+		v8plus_panic("could not init async call mutex: %s",
+		    strerror(err));
+	}
+	err = pthread_cond_init(&vac->vac_cv, NULL);
+	if (err != 0) {
+		v8plus_panic("could not init async call condvar: %s",
+		    strerror(err));
+	}
 	vac->vac_flags &= ~(ACF_COMPLETED);
 
 	/*
 	 * Post request to queue:
 	 */
-	if (pthread_mutex_lock(&_v8plus_callq_mtx) != 0)
-		v8plus_panic("could not lock async queue mutex");
+	err = pthread_mutex_lock(&_v8plus_callq_mtx);
+	if (err != 0) {
+		v8plus_panic("could not lock async queue mutex: %s",
+		    strerror(err));
+	}
 	STAILQ_INSERT_TAIL(&_v8plus_callq, vac, vac_callq_entry);
-	if (pthread_mutex_unlock(&_v8plus_callq_mtx) != 0)
-		v8plus_panic("could not unlock async queue mutex");
+	err = pthread_mutex_unlock(&_v8plus_callq_mtx);
+	if (err != 0) {
+		v8plus_panic("could not unlock async queue mutex: %s",
+		    strerror(err));
+	}
 	uv_async_send(&_v8plus_uv_async);
 
 	if (vac->vac_flags & ACF_NOREPLY) {
@@ -236,19 +266,34 @@ v8plus_cross_thread_call(v8plus_async_call_t *vac)
 	/*
 	 * Wait for our request to be serviced on the event loop thread:
 	 */
-	if (pthread_mutex_lock(&vac->vac_mtx) != 0)
-		v8plus_panic("could not lock async call mutex");
-	while (!(vac->vac_flags & ACF_COMPLETED)) {
-		if (pthread_cond_wait(&vac->vac_cv, &vac->vac_mtx) != 0)
-			v8plus_panic("could not wait on async call condvar");
+	err = pthread_mutex_lock(&vac->vac_mtx);
+	if (err != 0) {
+		v8plus_panic("could not lock async call mutex: %s",
+		    strerror(err));
 	}
-	if (pthread_mutex_unlock(&vac->vac_mtx) != 0)
-		v8plus_panic("could not unlock async call mutex");
+	while (!(vac->vac_flags & ACF_COMPLETED)) {
+		err = pthread_cond_wait(&vac->vac_cv, &vac->vac_mtx);
+		if (err != 0) {
+			v8plus_panic("could not wait on async call condvar: %s",
+			    strerror(err));
+		}
+	}
+	err = pthread_mutex_unlock(&vac->vac_mtx);
+	if (err != 0) {
+		v8plus_panic("could not unlock async call mutex: %s",
+		    strerror(err));
+	}
 
-	if (pthread_cond_destroy(&vac->vac_cv) != 0)
-		v8plus_panic("could not destroy async call condvar");
-	if (pthread_mutex_destroy(&vac->vac_mtx) != 0)
-		v8plus_panic("could not destroy async call mutex");
+	err = pthread_cond_destroy(&vac->vac_cv);
+	if (err != 0) {
+		v8plus_panic("could not destroy async call condvar: %s",
+		    strerror(err));
+	}
+	err = pthread_mutex_destroy(&vac->vac_mtx);
+	if (err != 0) {
+		v8plus_panic("could not destroy async call mutex: %s",
+		    strerror(err));
+	}
 
 	return (vac->vac_return);
 }
@@ -346,6 +391,8 @@ v8plus_jsfunc_rele(v8plus_jsfunc_t f)
 void
 v8plus_crossthread_init(void)
 {
+	int err;
+
 	if (atomic_swap_uint(&init_done, 1) != 0)
 		return;
 
@@ -356,19 +403,28 @@ v8plus_crossthread_init(void)
 	 * We want error checking mutexes that do not allow recursive entry,
 	 * and which report failures due to inconsistent entry and exit.
 	 */
-	if (pthread_mutexattr_init(&_v8plus_mutexattr) != 0 ||
-	    pthread_mutexattr_settype(&_v8plus_mutexattr,
-	    PTHREAD_MUTEX_ERRORCHECK) != 0) {
-		v8plus_panic("unable to initialise mutex attributes");
+	err = pthread_mutexattr_init(&_v8plus_mutexattr);
+	if (err != 0) {
+		v8plus_panic("unable to initialise mutex attributes: %s",
+		    strerror(err));
+	}
+	err = pthread_mutexattr_settype(&_v8plus_mutexattr,
+	    PTHREAD_MUTEX_ERRORCHECK);
+	if (err != 0) {
+		v8plus_panic("unable to set mutex attributes: %s",
+		    strerror(err));
 	}
 
 	_v8plus_uv_event_thread = pthread_self();
-	if (uv_async_init(uv_default_loop(), &_v8plus_uv_async,
-	    v8plus_async_callback) != 0) {
-		v8plus_panic("unable to initialise uv_async_t");
+	err = uv_async_init(uv_default_loop(), &_v8plus_uv_async,
+	    v8plus_async_callback);
+	if (err != 0) {
+		v8plus_panic("unable to initialise uv_async_t (code %d)", err);
 	}
-	if (pthread_mutex_init(&_v8plus_callq_mtx, &_v8plus_mutexattr) != 0)
-		v8plus_panic("unable to initialise mutex");
+	err = pthread_mutex_init(&_v8plus_callq_mtx, &_v8plus_mutexattr);
+	if (err != 0) {
+		v8plus_panic("unable to initialise mutex: %s", strerror(err));
+	}
 
 	/*
 	 * If we do not unreference the async handle, then its mere
