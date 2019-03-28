@@ -1,12 +1,16 @@
 /*
- * Copyright 2017 Joyent, Inc.
+ * Copyright 2019 Joyent, Inc.
  */
 
 #include <sys/ccompile.h>
 #include <sys/debug.h>
 #include <sys/queue.h>
 #include <sys/types.h>
+#ifdef sun
 #include <sys/atomic.h>
+#else
+#include <pthread.h>
+#endif
 #include <stdarg.h>
 #include <string.h>
 #include <strings.h>
@@ -395,8 +399,24 @@ v8plus_crossthread_init(void)
 {
 	int err;
 
+#ifdef sun
 	if (atomic_swap_uint(&init_done, 1) != 0)
 		return;
+#else
+	static pthread_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
+
+	if (init_done) {
+		return;
+	} else {
+		VERIFY0(pthread_mutex_lock(&init_lock));
+		if (init_done) {
+			VERIFY0(pthread_mutex_unlock(&init_lock));
+			return;
+		}
+		init_done = 1;
+		VERIFY0(pthread_mutex_unlock(&init_lock));
+	}
+#endif
 
 	(void) nv_alloc_init(&_v8plus_nva, nv_fixed_ops,
 	    _v8plus_exception_buf, sizeof (_v8plus_exception_buf));
@@ -1326,13 +1346,11 @@ _v8plus_throw_errno_exception(int errorno, const char *syscall, const char *msg,
 
 	codestr = strerrcode(errorno);
 
-	(void) snprintf(msgbuf, sizeof (msgbuf), "%s, %s",
-	    codestr, msg == NULL ? strerror(errorno) : msg);
-	if (path != NULL) {
-		(void) strlcat(msgbuf, " '", sizeof (msgbuf));
-		(void) strlcat(msgbuf, path, sizeof (msgbuf));
-		(void) strlcat(msgbuf, "'", sizeof (msgbuf));
-	}
+	(void) snprintf(msgbuf, sizeof (msgbuf), "%s, %s%s%s%s",
+	    codestr, msg == NULL ? strerror(errorno) : msg,
+	    path == NULL ? "" : " '",
+	    path == NULL ? "" : path,
+	    path == NULL ? "" : "'");
 
 	err = v8plus_obj_setprops(lp,
 	    V8PLUS_TYPE_STRING, V8PLUS_OBJ_TYPE_MEMBER, "Error",
