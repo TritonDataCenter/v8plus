@@ -20,6 +20,7 @@
 #include <pthread.h>
 #include <alloca.h>
 #include <libnvpair.h>
+#include <inttypes.h>
 #include "v8plus_c_impl.h"
 #include "v8plus_glue.h"
 
@@ -408,13 +409,13 @@ v8plus_crossthread_init(void)
 	if (init_done) {
 		return;
 	} else {
-		VERIFY0(pthread_mutex_lock(&init_lock));
+		pthread_mutex_lock(&init_lock);
 		if (init_done) {
-			VERIFY0(pthread_mutex_unlock(&init_lock));
+			pthread_mutex_unlock(&init_lock);
 			return;
 		}
 		init_done = 1;
-		VERIFY0(pthread_mutex_unlock(&init_lock));
+		pthread_mutex_unlock(&init_lock);
 	}
 #endif
 

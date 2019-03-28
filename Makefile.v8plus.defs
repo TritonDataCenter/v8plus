@@ -31,11 +31,14 @@ CFLAGS =	$(DEBUG_FLAGS) \
 		$(PIC_FLAGS) \
 		$(OPT_FLAGS) \
 		$(C_STDFLAGS)
+ifneq ($(shell uname -s),SunOS)
+CFLAGS +=	-DTEXT_DOMAIN=NULL
+endif
 CXXFLAGS =	$(DEBUG_FLAGS) \
 		$(WARN_FLAGS) \
 		$(PIC_FLAGS) \
 		$(OPT_FLAGS) \
-		$(CXX_STDFLAGS)
+		$(CXX_STDFLAGS) -pthread
 
 v8plus_csup.o : STD_DEFS =	-D_GNU_SOURCE -D__EXTENSIONS__
 NODE_DEFS =	-DBUILDING_NODE_EXTENSION -DMODULE=$(MODULE)
@@ -44,6 +47,7 @@ PIC_DEFS =	-DPIC
 NODE_INCS =	-isystem $(PREFIX_NODE)/include/node -I. -I$(V8PLUS)
 ifneq ($(shell uname -s),SunOS)
 NODE_INCS +=	-I$(V8PLUS)/contrib/illumos/include
+NODE_INCS +=	-I$(V8PLUS)/contrib/zfs-on-linux/include
 endif
 
 CPPFLAGS =	$(STD_DEFS) $(NODE_DEFS) $(LF64_DEFS) $(PIC_DEFS) $(NODE_INCS)
@@ -61,8 +65,10 @@ MAPFILES =	$(MAPFILE)
 LDFLAGS =	$(SHARED_FLAGS) $(ZTEXT) $(ZDEFS) $(NODE_LIBDIR)
 ifeq ($(shell uname -s),SunOS)
 LDFLAGS +=	$(MAPFILES:%=-Wl,-M,%)
-endif
 LIBS =		-lnvpair -lc
+else
+LIBS =		-luv -lc -pthread
+endif
 
 OBJS.c =	$(SRCS:.c=.o)
 OBJS =		$(OBJS.c:.cc=.o)
@@ -73,7 +79,9 @@ OBJS +=		\
 		v8plus_objectwrap.o \
 		v8plus_subr.o
 ifneq ($(shell uname -s),SunOS)
-OBJS +=		$(V8PLUS)/contrib/illumos/libnvpair/libnvpair.o
+OBJS +=		$(V8PLUS)/contrib/zfs-on-linux/libnvpair/libnvpair.o \
+		$(V8PLUS)/contrib/zfs-on-linux/libnvpair/nvpair.o \
+		$(V8PLUS)/contrib/zfs-on-linux/libnvpair/nvpair_alloc_fixed.o
 endif
 
 GENERRNO_JS =	$(V8PLUS)/generrno.js

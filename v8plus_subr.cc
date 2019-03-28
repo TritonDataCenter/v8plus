@@ -89,7 +89,6 @@ typedef struct cb_hdl {
 
 static std::unordered_map<uint64_t, cb_hdl_t> cbhash;
 static uint64_t cbnext;
-static void (*__real_nvlist_free)(nvlist_t *);
 static int nvlist_add_v8_Value(nvlist_t *,
     const char *, const v8::Handle<v8::Value> &);
 
@@ -703,6 +702,7 @@ v8plus_jsfunc_rele_direct(v8plus_jsfunc_t f)
 	v8plus_eventloop_rele_direct();
 }
 
+#ifdef sun
 static size_t
 library_name(const char *base, const char *version, char *buf, size_t len)
 {
@@ -714,6 +714,7 @@ library_name(const char *base, const char *version, char *buf, size_t len)
 	    version ? "." : "", version ? version : ""));
 #endif
 }
+#endif
 
 /*
  * This is really gross: we need to free up JS function slots when then list
@@ -734,6 +735,9 @@ nvlist_free(nvlist_t *lp)
 	if (lp == NULL)
 		return;
 
+#ifdef sun
+	static void (*__real_nvlist_free)(nvlist_t *) = NULL;
+
 	if (__real_nvlist_free == NULL) {
 		char *libname;
 		size_t len;
@@ -753,6 +757,9 @@ nvlist_free(nvlist_t *lp)
 		if (__real_nvlist_free == NULL)
 			v8plus_panic("unable to find nvlist_free");
 	}
+#else
+	extern void *__real_nvlist_free(nvlist_t *);
+#endif
 
 	if (nvlist_exists(lp, V8PLUS_JSF_COOKIE)) {
 		while ((pp = nvlist_next_nvpair(lp, pp)) != NULL) {

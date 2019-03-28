@@ -28,14 +28,10 @@
 #include <string.h>
 #include <libintl.h>
 #include <sys/types.h>
+#include <sys/note.h>
 #include <stdarg.h>
+#include <inttypes.h>
 #include "libnvpair.h"
-
-#define	NOTE(x)
-#define	SCNi8	"hhi"
-#define	SCNi16	"hi"
-#define	SCNi32	"i"
-#define	SCNi64	"lx"
 
 /*
  * libnvpair - A tools library for manipulating <name, value> pairs.
