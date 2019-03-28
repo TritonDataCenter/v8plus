@@ -15,6 +15,9 @@ ifeq (shell $(uname -s),SunOS)
 CTFCONVERT =	/opt/onbld/bin/i386/ctfconvert
 CTFMERGE =	/opt/onbld/bin/i386/ctfmerge
 CTF_LABEL =	v8plus_1.0.0
+else
+CTFCONVERT =	@echo NO CTFCONVERT
+CTFMERGE =	@echo NO CTFMERGE
 endif
 
 NODE_EXEC =	$(PREFIX_NODE)/bin/node
