@@ -1,5 +1,9 @@
 # v8plus Change History
 
+## 1.0.4
+
+Add headers from illumos to allow use on systems not derived from Solaris.
+
 ## 1.0.3
 
 Fixes a use-after-free bug, which could, in the right circumstances, cause
