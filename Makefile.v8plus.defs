@@ -11,9 +11,11 @@
 
 CC =		gcc
 CXX =		g++
+ifeq (shell $(uname -s),SunOS)
 CTFCONVERT =	/opt/onbld/bin/i386/ctfconvert
 CTFMERGE =	/opt/onbld/bin/i386/ctfmerge
 CTF_LABEL =	v8plus_1.0.0
+endif
 
 NODE_EXEC =	$(PREFIX_NODE)/bin/node
 
@@ -33,12 +35,13 @@ CFLAGS =	$(DEBUG_FLAGS) \
 		$(C_STDFLAGS)
 ifneq ($(shell uname -s),SunOS)
 CFLAGS +=	-DTEXT_DOMAIN=NULL
+CFLAGS +=	-Wno-unused-parameter -Wno-sign-compare
 endif
 CXXFLAGS =	$(DEBUG_FLAGS) \
 		$(WARN_FLAGS) \
 		$(PIC_FLAGS) \
 		$(OPT_FLAGS) \
-		$(CXX_STDFLAGS) -pthread
+		$(CXX_STDFLAGS)
 
 v8plus_csup.o : STD_DEFS =	-D_GNU_SOURCE -D__EXTENSIONS__
 NODE_DEFS =	-DBUILDING_NODE_EXTENSION -DMODULE=$(MODULE)
@@ -58,7 +61,9 @@ CXXPPFLAGS =	$(CPPFLAGS)
 
 SHARED_FLAGS =	-shared
 ZTEXT =		-Wl,-ztext
+ifeq ($(shell uname -s),SunOS)
 ZDEFS =		-Wl,-zdefs
+endif
 NODE_LIBDIR =	-L$(PREFIX_NODE)/lib
 MAPFILES =	$(MAPFILE)
 
@@ -67,7 +72,7 @@ ifeq ($(shell uname -s),SunOS)
 LDFLAGS +=	$(MAPFILES:%=-Wl,-M,%)
 LIBS =		-lnvpair -lc
 else
-LIBS =		-luv -lc -pthread
+LDFLAGS +=	$(MAPFILES:%=-Wl,-T,%)
 endif
 
 OBJS.c =	$(SRCS:.c=.o)
@@ -90,7 +95,6 @@ GENERRNO =	NODE_PATH=$(V8PLUS)/node_modules \
 
 ERRNO_H =	v8plus_errno.h
 ERRNO_C =	v8plus_errno.c
-
 
 NODE_SYMBOL =	$(shell $(CC) -xc $(CPPFLAGS) -E $(V8PLUS)/checkver.h \
 		    -o /dev/null 2>/dev/null || echo '\t\t$(MODULE)_module;')
