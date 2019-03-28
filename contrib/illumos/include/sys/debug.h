@@ -28,6 +28,7 @@
 /*
  * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
+ * Copyright 2019 Joyent, Inc.
  */
 
 /*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
@@ -41,6 +42,7 @@
 #endif
 #include <sys/types.h>
 #include <sys/note.h>
+#include <inttypes.h>
 
 #ifdef	__cplusplus
 extern "C" {

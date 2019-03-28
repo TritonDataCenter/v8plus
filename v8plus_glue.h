@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Joyent, Inc.  All rights reserved.
+ * Copyright 2019 Joyent, Inc.
  */
 
 #ifndef	_V8PLUS_GLUE_H
@@ -14,6 +14,12 @@ extern "C" {
 #endif	/* __cplusplus */
 
 #define	__UNUSED	__attribute__((__unused__))
+#ifndef __PRINTFLIKE
+#define	__PRINTFLIKE(x)
+#endif
+#ifndef __NORETURN
+#define __NORETURN
+#endif
 
 #define	V8PLUS_ARG_F_NOEXTRA	0x01
 
