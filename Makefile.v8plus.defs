@@ -89,7 +89,8 @@ OBJS +=		\
 ifneq ($(shell uname -s),SunOS)
 OBJS +=		$(V8PLUS)/contrib/zfs-on-linux/libnvpair/libnvpair.o \
 		$(V8PLUS)/contrib/zfs-on-linux/libnvpair/nvpair.o \
-		$(V8PLUS)/contrib/zfs-on-linux/libnvpair/nvpair_alloc_fixed.o
+		$(V8PLUS)/contrib/zfs-on-linux/libnvpair/nvpair_alloc_fixed.o \
+		$(V8PLUS)/contrib/zfs-on-linux/libnvpair/nvpair_alloc_system.o
 endif
 
 GENERRNO_JS =	$(V8PLUS)/generrno.js
