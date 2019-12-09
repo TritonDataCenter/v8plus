@@ -280,7 +280,10 @@ nvlist_add_v8_Value(nvlist_t *lp, const char *name,
 			return (err);
 		}
 
-		LA_V(lp, nvlist, name, vlp, err);
+		err = nvlist_add_nvlist(lp, name, vlp);
+		nvlist_free(vlp);
+		if (err != 0)
+			return err;
 	} else {
 		return (EINVAL);
 	}
